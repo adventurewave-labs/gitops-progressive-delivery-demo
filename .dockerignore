@@ -1,0 +1,37 @@
+# Build artifacts
+.next/
+out/
+dist/
+build/
+
+# Dependencies
+node_modules/
+
+# Environment / local files
+.env
+.env*.local
+*.local
+
+# Logs
+*.log
+dev.log
+server.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+
+# Prisma generated client (regenerated at build time)
+prisma/generated/
+
+# Misc
+.cache/
+coverage/
+*.md
+!README.md
+.git/
+.gitignore
