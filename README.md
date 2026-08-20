@@ -3,7 +3,7 @@
 > An interactive, web-based simulation of a modern **GitOps-driven Progressive Delivery** pipeline.
 > Watch a new `payments-api` v2.4 release roll out via Argo Rollouts canary, trip a Prometheus SLO violation, get diagnosed by K8sGPT, and auto-rollback — all in ~20 seconds.
 
-![CI](https://github.com/marcuspat/gitops-progressive-delivery-demo/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/adventurewave-labs/gitops-progressive-delivery-demo/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Next.js](https://img.shields.io/badge/Next.js-16-black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
@@ -57,7 +57,7 @@ No real cluster is required — every behaviour is driven by a central state mac
 ### Run locally (dev)
 
 ```bash
-git clone https://github.com/marcuspat/gitops-progressive-delivery-demo.git
+git clone https://github.com/adventurewave-labs/gitops-progressive-delivery-demo.git
 cd gitops-progressive-delivery-demo
 
 bun install            # or: npm install
@@ -159,7 +159,7 @@ Every push / PR triggers `.github/workflows/ci.yml` which:
 3. Builds the Docker image
 4. Boots the container and smoke-tests `HTTP 200` on `/`
 
-Status badge: ![CI](https://github.com/marcuspat/gitops-progressive-delivery-demo/actions/workflows/ci.yml/badge.svg)
+Status badge: ![CI](https://github.com/adventurewave-labs/gitops-progressive-delivery-demo/actions/workflows/ci.yml/badge.svg)
 
 ---
 
@@ -176,4 +176,4 @@ See [`CONTRIBUTING.md`](./CONTRIBUTING.md). PRs welcome — especially for:
 
 ## License
 
-[MIT](./LICENSE) — © 2026 Marcus Patman and adventurewave-labs contributors.
+[MIT](./LICENSE) — © 2026 adventurewave-labs and contributors.
