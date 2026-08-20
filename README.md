@@ -23,6 +23,16 @@
 > SLO violation, get diagnosed by an AI SRE, and auto-rollback — all in ~30 seconds, then
 > auto-loops.
 
+## 📄 Two ways to view this
+
+| What | URL | Description |
+|------|-----|-------------|
+| **Live interactive app** | `/` (root) | The full Next.js app with live backend — polls `/api/cluster-state` every second, makes real LLM calls on every analyzing phase. |
+| **Static showcase HTML** | [`/showcase`](./public/showcase/index.html) | A single-file dark-themed landing page (mirrors the [extravaganza](https://agentic-devops-extravaganza.vercel.app/) aesthetic) with embedded demo GIFs, real K8sGPT JSON output, real GLM-4.5 RCA card, architecture diagram, and the full UAT matrix. ~40 KB, no JS framework, no build step. |
+
+The showcase is also embeddable — drop `public/showcase/index.html` on any static host
+(Vercel, GitHub Pages, Netlify, Cloudflare Pages) and it just works.
+
 ---
 
 ## Quick start (3 ways)
@@ -147,7 +157,8 @@ gitops-progressive-delivery-demo/
 │   │   │   └── cluster-state/route.ts    # Aggregated snapshot UI polls every 1s
 │   │   ├── globals.css
 │   │   ├── layout.tsx
-│   │   └── page.tsx                  # UI: 2-col grid, polls /api/cluster-state
+│   │   ├── page.tsx                  # UI: 2-col grid, polls /api/cluster-state
+│   │   └── showcase/route.ts          # /showcase -> /showcase/index.html redirect
 │   ├── components/
 │   │   ├── ArgoSyncCard.tsx          # Git commit → arrow → cluster
 │   │   ├── RolloutsTrafficCard.tsx   # Animated traffic pipe
@@ -158,8 +169,16 @@ gitops-progressive-delivery-demo/
 │   │   └── utils.ts                   # cn() helper for shadcn/ui
 │   └── hooks/
 │       └── use-cluster-state.ts      # Polls /api/cluster-state every 1s
+├── public/
+│   └── showcase/                     # ★ Static landing page (no JS framework)
+│       ├── index.html                # 40 KB single-file showcase HTML
+│       ├── demo-1-pipeline.gif       # Full pipeline walkthrough (26s)
+│       ├── demo-2-k8sgpt.gif         # K8sGPT + real GLM-4.5 stream (14s)
+│       └── demo-3-rollback.gif       # Argo Rollouts abort + traffic revert (10s)
 ├── scripts/
-│   └── uat-test.sh                   # 28-check UAT suite (real backend)
+│   ├── uat-test.sh                   # 28-check UAT suite (real backend)
+│   ├── capture-assets.sh             # Snapshots real K8s / analyze / LLM responses
+│   └── record-gifs.sh                # Re-records the 3 showcase GIFs
 ├── Dockerfile                        # node:20-alpine, standalone
 ├── docker-compose.yml
 └── next.config.js

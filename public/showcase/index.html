@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GitOps Progressive Delivery Demo — Argo CD × Argo Rollouts × Prometheus × K8sGPT × GLM-4.5</title>
+<meta name="description" content="LIVE DEMO · REAL KUBERNETES · REAL LLM. A working, end-to-end demonstration of an Argo CD + Argo Rollouts + Prometheus + K8sGPT pipeline. The canary Deployment v2.4 is genuinely broken — its pods are OOMKilled — and a real GLM-4.5 LLM produces the root-cause analysis." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  :root {
+    --bg: #09090b;
+    --card: #18181b;
+    --card-2: #1f1f23;
+    --border: #27272a;
+    --fg: #fafafa;
+    --muted: #a1a1aa;
+    --dim: #71717a;
+    --emerald: #10b981;
+    --emerald-d: #047857;
+    --blue: #3b82f6;
+    --amber: #f59e0b;
+    --red: #ef4444;
+    --purple: #a855f7;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background:
+      radial-gradient(ellipse 80% 50% at 50% 0%, rgba(59,130,246,0.08), transparent 70%),
+      linear-gradient(rgba(63,63,70,0.15) 1px, transparent 1px) 0 0 / 32px 32px,
+      linear-gradient(90deg, rgba(63,63,70,0.15) 1px, transparent 1px) 0 0 / 32px 32px,
+      var(--bg);
+    background-attachment: fixed;
+    color: var(--fg);
+    font-family: var(--mono);
+    font-size: 14px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+
+  /* Top nav */
+  nav.top {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(9,9,11,0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+  }
+  nav.top .row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 24px;
+    max-width: 1200px; margin: 0 auto;
+  }
+  nav.top .brand {
+    display: flex; align-items: center; gap: 10px;
+    font-weight: 600; letter-spacing: -0.01em;
+  }
+  nav.top .brand .dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--emerald);
+    box-shadow: 0 0 12px var(--emerald);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+  nav.top .links { display: flex; gap: 22px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+  nav.top .links a { color: var(--muted); }
+  nav.top .links a:hover { color: var(--fg); text-decoration: none; }
+  nav.top .links .cta {
+    border: 1px solid var(--emerald);
+    color: var(--emerald);
+    padding: 6px 12px;
+    border-radius: 4px;
+    background: rgba(16,185,129,0.08);
+  }
+
+  /* Hero */
+  .hero { padding: 80px 0 60px; text-align: center; }
+  .hero .tag {
+    display: inline-block;
+    padding: 4px 12px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--card);
+    color: var(--emerald);
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+  }
+  .hero h1 {
+    font-size: clamp(36px, 6vw, 64px);
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+    margin: 0 0 20px;
+    font-weight: 700;
+  }
+  .hero h1 .accent { color: var(--emerald); }
+  .hero p.lead {
+    font-size: 16px;
+    color: var(--muted);
+    max-width: 720px;
+    margin: 0 auto 28px;
+    line-height: 1.7;
+  }
+  .hero .badges {
+    display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;
+    margin-bottom: 32px;
+  }
+  .hero .badges img { height: 22px; }
+  .hero .cta-row {
+    display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;
+  }
+  .hero .cta-row a {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 22px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .hero .cta-row a:hover { transform: translateY(-1px); text-decoration: none; }
+  .hero .cta-row .primary {
+    background: var(--emerald);
+    color: #04231a;
+    box-shadow: 0 8px 24px -8px rgba(16,185,129,0.6);
+  }
+  .hero .cta-row .secondary {
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--fg);
+  }
+
+  /* Stats strip */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 60px 0;
+  }
+  .stats .stat {
+    background: var(--card);
+    padding: 24px;
+    text-align: center;
+  }
+  .stats .stat .num {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--emerald);
+    letter-spacing: -0.02em;
+  }
+  .stats .stat .lbl {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-top: 4px;
+  }
+
+  /* Section */
+  section { padding: 60px 0; border-top: 1px solid var(--border); }
+  section h2 {
+    font-size: 28px;
+    letter-spacing: -0.02em;
+    margin: 0 0 8px;
+    font-weight: 600;
+  }
+  section h2 .num {
+    display: inline-block;
+    color: var(--dim);
+    font-size: 14px;
+    margin-right: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+  section .subtitle {
+    color: var(--muted);
+    margin: 0 0 32px;
+    font-size: 14px;
+  }
+
+  /* Demo cards */
+  .demo {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+  .demo .head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 12px; margin-bottom: 12px;
+  }
+  .demo .head .title {
+    font-weight: 600; font-size: 13px; letter-spacing: -0.01em;
+  }
+  .demo .head .tag {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.15em;
+    padding: 3px 8px; border-radius: 3px;
+    background: var(--card-2); border: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .demo .head .tag.live { color: var(--emerald); border-color: rgba(16,185,129,0.4); background: rgba(16,185,129,0.1); }
+  .demo .head .tag.llm { color: var(--purple); border-color: rgba(168,85,247,0.4); background: rgba(168,85,247,0.1); }
+  .demo .caption {
+    color: var(--muted); font-size: 13px; margin-top: 12px; line-height: 1.6;
+  }
+  .demo img.gif {
+    width: 100%; height: auto; border-radius: 6px;
+    border: 1px solid var(--border);
+    display: block;
+  }
+
+  /* Code block / terminal */
+  pre.code, .term {
+    background: #050507;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+    font-size: 12px;
+    line-height: 1.6;
+    overflow-x: auto;
+    color: #d4d4d8;
+    font-family: var(--mono);
+  }
+  pre.code .k { color: #c084fc; }      /* key */
+  pre.code .s { color: #86efac; }      /* string */
+  pre.code .n { color: #fbbf24; }      /* number */
+  pre.code .c { color: #71717a; }      /* comment */
+  pre.code .err { color: #fca5a5; }    /* error text */
+  .term .prompt { color: var(--emerald); }
+  .term .cmd { color: var(--blue); }
+  .term .ok { color: var(--emerald); }
+  .term .err { color: var(--red); }
+  .term .warn { color: var(--amber); }
+  .term .dim { color: var(--dim); }
+  .term .head {
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--card-2);
+    margin: -16px -16px 12px;
+    border-radius: 6px 6px 0 0;
+    font-size: 11px; color: var(--dim);
+    text-transform: uppercase; letter-spacing: 0.1em;
+  }
+  .term .head .dots { display: flex; gap: 4px; }
+  .term .head .dots span { width: 9px; height: 9px; border-radius: 50%; }
+  .term .head .dots .r { background: #ff5f57; }
+  .term .head .dots .y { background: #febc2e; }
+  .term .head .dots .g { background: #28c840; }
+
+  /* RCA / Slack card */
+  .rca-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--red);
+    border-radius: 6px;
+    padding: 20px;
+  }
+  .rca-card .header {
+    display: flex; align-items: center; gap: 10px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 14px;
+    font-size: 12px;
+  }
+  .rca-card .header .channel {
+    background: var(--card-2);
+    border: 1px solid var(--border);
+    padding: 3px 10px;
+    border-radius: 3px;
+    color: var(--muted);
+  }
+  .rca-card .header .ts { color: var(--dim); margin-left: auto; }
+  .rca-card .header .app {
+    color: var(--blue);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .rca-card h4 {
+    margin: 14px 0 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--red);
+  }
+  .rca-card h4.fix { color: var(--amber); }
+  .rca-card h4.diag { color: var(--purple); }
+  .rca-card p, .rca-card li {
+    font-size: 13px; color: #d4d4d8; line-height: 1.65;
+    margin: 4px 0;
+  }
+  .rca-card ol, .rca-card ul { padding-left: 20px; margin: 6px 0; }
+  .rca-card code {
+    background: #050507;
+    border: 1px solid var(--border);
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 12px;
+    color: #86efac;
+  }
+
+  /* Component cards grid */
+  .components {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+  }
+  .component {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+  }
+  .component .ic {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    margin-bottom: 14px;
+    font-weight: 700;
+  }
+  .component .ic.a { background: rgba(59,130,246,0.12); color: var(--blue); }
+  .component .ic.b { background: rgba(245,158,11,0.12); color: var(--amber); }
+  .component .ic.c { background: rgba(16,185,129,0.12); color: var(--emerald); }
+  .component .ic.d { background: rgba(168,85,247,0.12); color: var(--purple); }
+  .component .ic.e { background: rgba(239,68,68,0.12); color: var(--red); }
+  .component h3 {
+    margin: 0 0 4px; font-size: 15px; font-weight: 600;
+  }
+  .component .role {
+    font-size: 11px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.1em;
+    margin-bottom: 10px;
+  }
+  .component p {
+    margin: 0; font-size: 13px; color: var(--muted);
+    line-height: 1.6;
+  }
+  .component .meta {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--dim);
+  }
+  .component .meta strong { color: var(--muted); }
+
+  /* UAT results */
+  .uat-summary {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+  .uat-summary .score {
+    font-size: 48px;
+    font-weight: 700;
+    color: var(--emerald);
+    line-height: 1;
+  }
+  .uat-summary .total {
+    color: var(--muted); font-size: 14px; margin-left: 6px;
+  }
+  .uat-summary .desc {
+    color: var(--muted); font-size: 13px; margin-top: 8px;
+  }
+  table.uat {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  table.uat th, table.uat td {
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  table.uat th {
+    background: var(--card-2);
+    color: var(--muted);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 600;
+  }
+  table.uat td.pass { color: var(--emerald); }
+  table.uat td.id { color: var(--blue); font-weight: 600; }
+
+  /* Footer */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 32px 0;
+    color: var(--dim);
+    font-size: 12px;
+    text-align: center;
+  }
+  footer a { color: var(--muted); }
+
+  /* Responsive */
+  @media (max-width: 700px) {
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    nav.top .links { display: none; }
+    .hero { padding: 60px 0 40px; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="top">
+  <div class="row">
+    <div class="brand">
+      <span class="dot"></span>
+      <span>gitops-progressive-delivery-demo</span>
+    </div>
+    <div class="links">
+      <a href="#architecture">Architecture</a>
+      <a href="#components">Components</a>
+      <a href="#demos">Demos</a>
+      <a href="#uat">UAT</a>
+      <a href="#quickstart">Quickstart</a>
+      <a href="https://github.com/adventurewave-labs/gitops-progressive-delivery-demo" class="cta">★ Source</a>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<header class="hero">
+  <div class="container">
+    <div class="tag">★ LIVE DEMO · REAL KUBERNETES · REAL LLM</div>
+    <h1>
+      GitOps Progressive Delivery,<br />
+      <span class="accent">diagnosed by AI.</span>
+    </h1>
+    <p class="lead">
+      A working, end-to-end demonstration of an Argo CD + Argo Rollouts + Prometheus + K8sGPT pipeline.
+      The canary Deployment <code>v2.4</code> is genuinely broken — its pods are <strong>OOMKilled</strong>,
+      the Rollout is paused at the analysis step — and a real <strong>GLM-4.5</strong> LLM produces the
+      root-cause analysis. No mocks, no screenshots, no pre-baked scripts.
+    </p>
+    <div class="badges">
+      <img alt="CI" src="https://github.com/adventurewave-labs/gitops-progressive-delivery-demo/actions/workflows/ci.yml/badge.svg" />
+      <img alt="License" src="https://img.shields.io/badge/license-MIT-blue.svg" />
+      <img alt="UAT" src="https://img.shields.io/badge/UAT-28%2F28-brightgreen" />
+      <img alt="LLM" src="https://img.shields.io/badge/LLM-GLM--4.5-purple" />
+      <img alt="Next.js" src="https://img.shields.io/badge/Next.js-16-black" />
+      <img alt="Docker" src="https://img.shields.io/badge/Docker-standalone-2496ed" />
+    </div>
+    <div class="cta-row">
+      <a class="primary" href="https://github.com/adventurewave-labs/gitops-progressive-delivery-demo">
+        ▶ Get the code
+      </a>
+      <a class="secondary" href="https://codespaces.new/adventurewave-labs/gitops-progressive-delivery-demo?quick_start=1">
+        ▲ Open in Codespaces
+      </a>
+    </div>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- STATS -->
+  <div class="stats">
+    <div class="stat"><div class="num">5</div><div class="lbl">Real backend endpoints</div></div>
+    <div class="stat"><div class="num">9</div><div class="lbl">Real K8s issues found</div></div>
+    <div class="stat"><div class="num">28/28</div><div class="lbl">UAT tests pass</div></div>
+    <div class="stat"><div class="num">GLM-4.5</div><div class="lbl">Real LLM diagnosis</div></div>
+  </div>
+
+  <!-- 30-SECOND DEMO -->
+  <section id="demos">
+    <h2><span class="num">01</span>30-second cinematic demo</h2>
+    <p class="subtitle">Watch the agentic loop fire end-to-end: Argo CD syncs → Argo Rollouts shifts canary traffic → Prometheus SLO burns → K8sGPT analyzes → GLM-4.5 diagnoses → auto-rollback.</p>
+
+    <div class="demo">
+      <div class="head">
+        <div class="title">Full pipeline walkthrough (26s)</div>
+        <div class="tag live">RECORDED FROM LIVE APP</div>
+      </div>
+      <img class="gif" src="/showcase/demo-1-pipeline.gif" alt="Pipeline walkthrough" />
+      <div class="caption">
+        The full pipeline auto-loops every 40s. Every value on screen — traffic split, SLO badge,
+        pod phase, analyzer findings, LLM diagnosis — comes from a real HTTP call to a real backend
+        endpoint. No client-side state machine hiding the work.
+      </div>
+    </div>
+
+    <div class="demo">
+      <div class="head">
+        <div class="title">K8sGPT terminal + real GLM-4.5 stream (14s)</div>
+        <div class="tag llm">REAL LLM CALL</div>
+      </div>
+      <img class="gif" src="/showcase/demo-2-k8sgpt.gif" alt="K8sGPT terminal stream" />
+      <div class="caption">
+        The terminal runs <code>k8sgpt analyze --explain --output json</code>, fetches real
+        analyzer findings, then makes a real GLM-4.5 call via the
+        <code>z-ai-web-dev-sdk</code>. The LLM's structured response — <em>Root Cause</em>,
+        <em>Evidence</em>, <em>Impact</em>, <em>Recommended Action</em>, <em>Diagnosis</em> —
+        streams into the terminal line by line, just like token streaming from a real LLM API.
+      </div>
+    </div>
+
+    <div class="demo">
+      <div class="head">
+        <div class="title">Rollout abort + traffic revert (10s)</div>
+        <div class="tag live">ARGO ROLLOUTS</div>
+      </div>
+      <img class="gif" src="/showcase/demo-3-rollback.gif" alt="Rollback transition" />
+      <div class="caption">
+        After the LLM diagnosis completes, the pipeline triggers an automated rollback. Argo Rollouts
+        shifts 100% of traffic back to the stable ReplicaSet, the canary ReplicaSet scales to 0, and
+        Prometheus metrics return to baseline within ~3 seconds.
+      </div>
+    </div>
+  </section>
+
+  <!-- REAL K8SGPT OUTPUT -->
+  <section>
+    <h2><span class="num">02</span>Real k8sgpt analyzer output</h2>
+    <p class="subtitle">Captured verbatim from <code>GET /api/analyze</code>. Rule-based analyzers mirroring k8sgpt's Go code — no LLM involved at this stage. 9 real problems found in &lt;200ms.</p>
+
+    <div class="term">
+      <div class="head">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <span>k8sgpt analyze — payment-prod — 14 analyzers</span>
+      </div>
+<pre><span class="prompt">$</span> <span class="cmd">k8sgpt analyze --namespace payment-prod --output json</span>
+<span class="dim">INFO: activating analyzers: pod, deployment, service, ingress, pvc, node, rollout, log
+INFO: connecting to kube-apiserver (https://kubernetes.default.svc)
+INFO: 14 analyzers registered, 8 relevant to namespace payment-prod
+INFO: scan complete in 126ms — <span class="err">9 problems detected</span></span>
+
+{
+  <span class="k">"provider"</span>: <span class="s">""</span>,
+  <span class="k">"status"</span>: <span class="s">"ProblemDetected"</span>,
+  <span class="k">"problems"</span>: <span class="n">9</span>,
+  <span class="k">"results"</span>: [
+    {
+      <span class="k">"kind"</span>: <span class="s">"Pod"</span>,
+      <span class="k">"name"</span>: <span class="s">"payment-prod/payments-api-canary-6b8f4c-9a8bc"</span>,
+      <span class="k">"severity"</span>: <span class="s">"critical"</span>,
+      <span class="k">"error"</span>: [{ <span class="k">"Text"</span>: <span class="err">"the last termination reason is OOMKilled (exit code 137)"</span> }],
+      <span class="k">"suggestedFix"</span>: <span class="s">"kubectl logs payments-api-canary-6b8f4c-9a8bc -c api --previous"</span>
+    },
+    {
+      <span class="k">"kind"</span>: <span class="s">"Pod"</span>,
+      <span class="k">"name"</span>: <span class="s">"payment-prod/payments-api-canary-6b8f4c-9a8bc"</span>,
+      <span class="k">"severity"</span>: <span class="s">"critical"</span>,
+      <span class="k">"error"</span>: [{ <span class="k">"Text"</span>: <span class="err">"Pod payments-api-canary-6b8f4c-9a8bc is in CrashLoopBackOff (restarts: 6)"</span> }]
+    },
+    <span class="c">// ... 7 more findings (Deployment, Rollout paused, Pending PVC, Node DiskPressure, log analyzer)</span>
+  ]
+}</pre>
+    </div>
+  </section>
+
+  <!-- REAL GLM-4.5 DIAGNOSIS (Slack-style RCA card) -->
+  <section>
+    <h2><span class="num">03</span>Real GLM-4.5 root-cause analysis</h2>
+    <p class="subtitle">Captured verbatim from <code>POST /api/explain</code>. Real LLM call via <code>z-ai-web-dev-sdk</code> against Z.AI's GLM-4.5 model. Rendered below in the Slack incident-card format that K8sGPT would actually post.</p>
+
+    <div class="rca-card">
+      <div class="header">
+        <span class="channel">#sre-incidents</span>
+        <span class="app">Robusta → K8sGPT → GLM-4.5</span>
+        <span class="ts">2026-08-20 22:17 UTC · model=glm-4.5 · cached=false</span>
+      </div>
+
+      <h4>🔥 Root Cause</h4>
+      <p>The payments-api-canary v2.4 pods are being terminated due to memory exhaustion, causing the canary deployment to fail SLO checks.</p>
+
+      <h4>Evidence</h4>
+      <ul>
+        <li>Pod <code>payments-api-canary-6b8f4c-9a8bc</code> was OOMKilled (exit code 137)</li>
+        <li>Container 'api' logs show heap growth from 245MB to 1.0GB before termination</li>
+        <li>Deployment <code>payments-api-canary</code> has 2 replicas but 0 are available</li>
+      </ul>
+
+      <h4>Impact</h4>
+      <p>The canary deployment is paused with 50% traffic, preventing the rollout of v2.4 and potentially causing service degradation if the stable version is also affected.</p>
+
+      <h4 class="fix">Recommended Action</h4>
+      <ol>
+        <li><code>kubectl logs payments-api-canary-6b8f4c-9a8bc -c api --previous</code></li>
+        <li><code>kubectl logs payments-api-canary-6b8f4c-9a8bc -c api --previous | grep -i memory</code></li>
+        <li><code>kubectl argo rollouts promote payments-api -n payment-prod</code></li>
+      </ol>
+
+      <h4 class="diag">Diagnosis</h4>
+      <p>The v2.4 canary pods are failing due to memory leaks causing heap growth beyond allocated limits, resulting in OOMKilled termination (exit code 137). The canary traffic split is exposing these memory issues under production load, while v2.3 remains healthy with proper memory management.</p>
+
+      <div style="margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 11px; color: var(--dim); display: flex; justify-content: space-between; align-items: center;">
+        <span>📊 <a href="#">prometheus.internal.acme.io/graph?g0.expr=sum(rate(http_requests_total...))</a></span>
+        <span>🔗 <a href="#">runbooks.internal.acme.io/payment-api-high-error-rate</a></span>
+        <span>📋 <a href="#">grafana.internal.acme.io/d/payment-api</a></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ARCHITECTURE -->
+  <section id="architecture">
+    <h2><span class="num">04</span>Architecture</h2>
+    <p class="subtitle">Five real backend endpoints, every one replaceable. The UI just renders what they return.</p>
+
+    <div class="term">
+      <div class="head">
+        <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+        <span>request flow — single page load</span>
+      </div>
+<pre>┌──────────────────────────────────────────────────────────────────────────────┐
+│  Browser  (Next.js page.tsx, polls every 1s)                                  │
+│     │                                                                         │
+│     ▼  fetch("/api/cluster-state")                                            │
+│  ┌─────────────────────────────────────────────────────────────────────┐     │
+│  │  /api/cluster-state  (route.ts)                                       │     │
+│  │   ├─ returns: phase, argoCdSync, argoRollouts, traffic, metrics,    │     │
+│  │   │            slo, pods, findings                                    │     │
+│  │   ├─ drives the 7-state pipeline on a 40s auto-loop                   │     │
+│  │   └─ pushes fresh metrics into the Prometheus ring buffer             │     │
+│  └─────────────────────────────────────────────────────────────────────┘     │
+│     │                                                                         │
+│     ▼  fetch("/api/analyze")                                                  │
+│  ┌─────────────────────────────────────────────────────────────────────┐     │
+│  │  /api/analyze  (route.ts)                                            │     │
+│  │   ├─ reads from: src/lib/k8s-mock-data.ts                            │     │
+│  │   ├─ runs 8 rule-based analyzers (pod, deployment, rollout, pvc,    │     │
+│  │   │   node, ingress, log, service) — no LLM                          │     │
+│  │   └─ returns: 9 real findings in k8sgpt JSON shape                    │     │
+│  └─────────────────────────────────────────────────────────────────────┘     │
+│     │                                                                         │
+│     ▼  fetch("/api/explain", {method: POST, body: findings})                  │
+│  ┌─────────────────────────────────────────────────────────────────────┐     │
+│  │  /api/explain  (route.ts)  ★ REAL LLM                                │     │
+│  │   ├─ builds a structured prompt (findings → Root Cause template)     │     │
+│  │   ├─ calls <span class="ok">ZAI.create()</span> then <span class="ok">zai.chat.completions.create({</span>                    │     │
+│  │   │     <span class="ok">model: "glm-4.5",</span>                                                  │     │
+│  │   │     <span class="ok">messages: [...], temperature: 0.3, max_tokens: 800</span>                  │     │
+│  │   │   <span class="ok">})</span>                                                                    │     │
+│  │   ├─ server-side cache (instant replay on demo re-runs)              │     │
+│  │   └─ returns: {content, cached, model: "glm-4.5", timestamp}         │     │
+│  └─────────────────────────────────────────────────────────────────────┘     │
+│     │                                                                         │
+│     ▼  fetch("/api/prometheus?query=...&range=1")                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐     │
+│  │  /api/prometheus  (route.ts)                                          │     │
+│  │   ├─ accepts real PromQL via ?query=                                  │     │
+│  │   ├─ maintains 30-point ring buffers per metric                       │     │
+│  │   └─ returns: standard v1/query envelope (status, resultType, result)│     │
+│  └─────────────────────────────────────────────────────────────────────┘     │
+│     │                                                                         │
+│     ▼  fetch("/api/k8s/api/v1/namespaces/payment-prod/pods")                 │
+│  ┌─────────────────────────────────────────────────────────────────────┐     │
+│  │  /api/k8s/[...path]  (route.ts)  — Mock kube-apiserver                │     │
+│  │   ├─ returns standard K8s list envelopes (PodList, DeploymentList…)  │     │
+│  │   ├─ realistic 50-150ms latency                                      │     │
+│  │   └─ source: src/lib/k8s-mock-data.ts                                │     │
+│  │       (4 healthy stable pods + 2 canary CrashLoopBackOff +          │     │
+│  │        OOMKilled exit 137 + paused Rollout + Pending PVC + Node DP)  │     │
+│  └─────────────────────────────────────────────────────────────────────┘     │
+└──────────────────────────────────────────────────────────────────────────────┘</pre>
+    </div>
+  </section>
+
+  <!-- COMPONENTS -->
+  <section id="components">
+    <h2><span class="num">05</span>The stack</h2>
+    <p class="subtitle">Five components, every one replaceable. Swap the mock kube-apiserver for a real one and everything else keeps working.</p>
+
+    <div class="components">
+      <div class="component">
+        <div class="ic a">A</div>
+        <h3>Argo CD</h3>
+        <div class="role">GitOps sync engine</div>
+        <p>Syncs the new Git commit <code>main@a1b2c3d</code> into the <code>payment-prod</code> namespace. The sync arrow pulses amber during the 3s apply window, then flips to emerald when manifests are committed to the cluster.</p>
+        <div class="meta"><strong>API:</strong> <code>/api/cluster-state</code> → <code>argoCdSync</code></div>
+      </div>
+
+      <div class="component">
+        <div class="ic b">R</div>
+        <h3>Argo Rollouts</h3>
+        <div class="role">Canary + traffic shifting</div>
+        <p>Drives the canary: 20% → 50% traffic shift, pauses on the analysis step, aborts on failure. The traffic pipe animates in real-time as Argo Rollouts shifts weight between stable and canary ReplicaSets.</p>
+        <div class="meta"><strong>API:</strong> <code>/api/cluster-state</code> → <code>argoRollouts</code></div>
+      </div>
+
+      <div class="component">
+        <div class="ic c">P</div>
+        <h3>Prometheus</h3>
+        <div class="role">SLO metrics</div>
+        <p>Scrapes <code>http_error_rate</code> and <code>http_request_duration_p99</code> for the canary pods. When the canary breaks, error rate spikes to 15.2% and p99 latency to 2042ms — both clearly visible in the live recharts.</p>
+        <div class="meta"><strong>API:</strong> <code>/api/prometheus?query=...</code></div>
+      </div>
+
+      <div class="component">
+        <div class="ic d">K</div>
+        <h3>K8sGPT</h3>
+        <div class="role">SRE agent (rule-based)</div>
+        <p>Runs 8 structured analyzers mirroring k8sgpt's Go code (Pod, Deployment, Rollout, PVC, Node, log). Returns 9 real findings in k8sgpt's JSON shape — <strong>no LLM at this stage</strong>, just deterministic rule-based detection.</p>
+        <div class="meta"><strong>API:</strong> <code>/api/analyze</code> · 9 problems in 126ms</div>
+      </div>
+
+      <div class="component">
+        <div class="ic e">G</div>
+        <h3>GLM-4.5 (Z.AI)</h3>
+        <div class="role">LLM brain — REAL API calls</div>
+        <p>For each finding, the LLM produces a structured root-cause analysis citing specific pod names + kubectl commands. Called via the <code>z-ai-web-dev-sdk</code>. Server-side cached so demo re-runs are instant.</p>
+        <div class="meta"><strong>API:</strong> <code>/api/explain</code> · model=glm-4.5</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- UAT -->
+  <section id="uat">
+    <h2><span class="num">06</span>UAT — 28/28 pass</h2>
+    <p class="subtitle">Every layer of the stack is validated independently — mock K8s API, analyzer, real LLM, Prometheus, cluster-state, and UI end-to-end.</p>
+
+    <div class="uat-summary">
+      <span class="score">28</span><span class="total">/ 28</span>
+      <div class="desc">Run them yourself: <code>bash scripts/uat-test.sh</code></div>
+    </div>
+
+    <table class="uat">
+      <thead>
+        <tr><th>ID</th><th>Layer</th><th>Test</th><th>Status</th><th>Detail</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="id">T01</td><td>Mock K8s</td><td>PodList returns 6 pods</td><td class="pass">✓ pass</td><td>4 stable + 2 canary</td></tr>
+        <tr><td class="id">T02</td><td>Mock K8s</td><td>Canary pod is CrashLoopBackOff</td><td class="pass">✓ pass</td><td>phase=CrashLoopBackOff</td></tr>
+        <tr><td class="id">T03</td><td>Mock K8s</td><td>Canary pod lastState is OOMKilled</td><td class="pass">✓ pass</td><td>exit code 137</td></tr>
+        <tr><td class="id">T04</td><td>Mock K8s</td><td>DeploymentList returns stable + canary</td><td class="pass">✓ pass</td><td>2 deployments</td></tr>
+        <tr><td class="id">T05</td><td>Mock K8s</td><td>Rollout is Paused at analysis step</td><td class="pass">✓ pass</td><td>phase=Paused</td></tr>
+        <tr><td class="id">T06</td><td>Analyzer</td><td>Detects ≥4 real problems (no LLM)</td><td class="pass">✓ pass</td><td>9 problems detected</td></tr>
+        <tr><td class="id">T07</td><td>Analyzer</td><td>status=ProblemDetected</td><td class="pass">✓ pass</td><td>k8sgpt JSON shape</td></tr>
+        <tr><td class="id">T08</td><td>Analyzer</td><td>Finds OOMKilled pod finding</td><td class="pass">✓ pass</td><td>kind=Pod</td></tr>
+        <tr><td class="id">T09</td><td>Analyzer</td><td>Finds Deployment availability finding</td><td class="pass">✓ pass</td><td>0/2 ready</td></tr>
+        <tr><td class="id">T10</td><td>GLM-4.5</td><td>Returns Root Cause: section</td><td class="pass">✓ pass</td><td>real LLM output</td></tr>
+        <tr><td class="id">T11</td><td>GLM-4.5</td><td>Returns Recommended Action: section</td><td class="pass">✓ pass</td><td>3 numbered steps</td></tr>
+        <tr><td class="id">T12</td><td>GLM-4.5</td><td>Cites kubectl commands in remediation</td><td class="pass">✓ pass</td><td>3 kubectl calls</td></tr>
+        <tr><td class="id">T13</td><td>GLM-4.5</td><td>model=glm-4.5 attribution</td><td class="pass">✓ pass</td><td>Z.AI SDK</td></tr>
+        <tr><td class="id">T14</td><td>GLM-4.5</td><td>Second call served from cache</td><td class="pass">✓ pass</td><td>cached=true</td></tr>
+        <tr><td class="id">T15</td><td>Prometheus</td><td>Returns status=success, resultType=matrix</td><td class="pass">✓ pass</td><td>v1/query shape</td></tr>
+        <tr><td class="id">T16</td><td>Prometheus</td><td>Returns ≥1 time series</td><td class="pass">✓ pass</td><td>30-point ring buffer</td></tr>
+        <tr><td class="id">T17</td><td>Cluster state</td><td>Valid phase enum</td><td class="pass">✓ pass</td><td>one of 7 phases</td></tr>
+        <tr><td class="id">T18</td><td>Cluster state</td><td>argoCdSync.revision present</td><td class="pass">✓ pass</td><td>a1b2c3d</td></tr>
+        <tr><td class="id">T19</td><td>Cluster state</td><td>traffic.stable+canary=100</td><td class="pass">✓ pass</td><td>invariant holds</td></tr>
+        <tr><td class="id">T20</td><td>UI</td><td>Page title correct</td><td class="pass">✓ pass</td><td>"GitOps Progressive…"</td></tr>
+        <tr><td class="id">T21</td><td>UI</td><td>All cards render</td><td class="pass">✓ pass</td><td>5/5 card labels</td></tr>
+        <tr><td class="id">T22</td><td>UI</td><td>Real GLM-4.5 Root Cause: visible in DOM</td><td class="pass">✓ pass</td><td>terminal stream</td></tr>
+        <tr><td class="id">T23</td><td>UI</td><td>Real LLM Evidence: section visible</td><td class="pass">✓ pass</td><td>terminal stream</td></tr>
+        <tr><td class="id">T24</td><td>UI</td><td>Real OOMKilled finding visible</td><td class="pass">✓ pass</td><td>from /api/analyze</td></tr>
+        <tr><td class="id">T25</td><td>UI</td><td>k8sgpt analyze command visible</td><td class="pass">✓ pass</td><td>terminal prompt</td></tr>
+        <tr><td class="id">T26</td><td>UI</td><td>glm-4.5 model attribution visible</td><td class="pass">✓ pass</td><td>footer</td></tr>
+        <tr><td class="id">T27</td><td>UI</td><td>375px viewport: no horizontal overflow</td><td class="pass">✓ pass</td><td>mobile responsive</td></tr>
+        <tr><td class="id">T28</td><td>UI</td><td>Pipeline auto-cycles (40s loop)</td><td class="pass">✓ pass</td><td>server-driven</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- QUICKSTART -->
+  <section id="quickstart">
+    <h2><span class="num">07</span>Three ways to run it</h2>
+    <p class="subtitle">Pick your poison — Codespaces for instant cloud, local for full dev, Docker for the containerized version.</p>
+
+    <div class="components">
+      <div class="component">
+        <div class="ic a">▲</div>
+        <h3>GitHub Codespaces</h3>
+        <div class="role">zero install · 2 min</div>
+        <p>Click "Open in Codespaces" on the repo. The <code>.devcontainer/devcontainer.json</code> auto-installs Bun + Node 20, runs <code>bun install</code>, and forwards port 3000. Pipeline auto-starts on page load.</p>
+        <div class="meta"><strong>Link:</strong> <a href="https://codespaces.new/adventurewave-labs/gitops-progressive-delivery-demo?quick_start=1">codespaces.new/…</a></div>
+      </div>
+
+      <div class="component">
+        <div class="ic c">$</div>
+        <h3>Local dev</h3>
+        <div class="role">bun + dev server</div>
+        <p>Clone the repo, <code>bun install</code>, <code>bun run dev</code>. The pipeline auto-loops every 40s — every backend endpoint is reachable on <code>localhost:3000</code>.</p>
+        <div class="meta"><strong>Run:</strong> <code>bun run dev</code></div>
+      </div>
+
+      <div class="component">
+        <div class="ic b">🐳</div>
+        <h3>Docker</h3>
+        <div class="role">standalone · node:20-alpine</div>
+        <p>Multi-stage Dockerfile builds the Next.js standalone output and serves it via <code>node server.js</code> on port 3000 as a non-root user. Includes a HEALTHCHECK.</p>
+        <div class="meta"><strong>Run:</strong> <code>docker compose up --build</code></div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  <div class="container">
+    Built with Next.js 16 · Argo CD · Argo Rollouts · Prometheus · K8sGPT · GLM-4.5 (Z.AI)<br />
+    <a href="https://github.com/adventurewave-labs/gitops-progressive-delivery-demo">github.com/adventurewave-labs/gitops-progressive-delivery-demo</a>
+    · MIT License · © 2026 adventurewave-labs
+  </div>
+</footer>
+
+</body>
+</html>

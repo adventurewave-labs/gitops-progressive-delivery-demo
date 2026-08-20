@@ -48,11 +48,13 @@ download/
 worklog.md
 agent-ctx/
 
-# Intermediate recording artifacts (the canonical GIF lives in public/demo.gif)
+# Intermediate recording artifacts (canonical GIFs live in public/showcase/)
 scripts/demo.webm
 scripts/demo.gif
 scripts/palette.png
 scripts/frames_*.png
+scripts/showcase-assets/
+scripts/llm-diagnosis.json
 
 # Platform scaffolding that is not part of this demo project
 skills/
