@@ -1,32 +1,31 @@
 #!/usr/bin/env bash
-# UAT (User Acceptance Testing) script for gitops-progressive-delivery-demo.
+# UAT for the rebuilt (real-backend) GitOps progressive delivery demo.
 #
-# Exercises the full pipeline state machine end-to-end and validates every
-# state's UI contract, then runs edge-case tests. Produces a JSON report at
-# /home/z/my-project/scripts/uat-report.json and a human-readable summary on
-# stdout. Exits non-zero if any test fails.
+# Validates:
+#   1. Mock kube-apiserver returns the 6 broken canary resources
+#   2. /api/analyze runs real analyzers and returns ≥4 findings
+#   3. /api/explain calls real GLM-4.5 and returns structured RCA
+#   4. /api/prometheus returns PromQL matrix results
+#   5. /api/cluster-state returns the full live snapshot
+#   6. UI renders all the above end-to-end
+#   7. The full pipeline cycles: idle → syncing → canary20 → canary50 →
+#      anomaly → analyzing → rollback (auto-loop)
 #
-# Run it from anywhere — the script uses absolute paths and assumes the dev
-# server is already up at http://localhost:3000.
+# Run: bash scripts/uat-test.sh
+# Assumes the dev server is up at http://localhost:3000.
 
 set -uo pipefail
 
 BASE_URL="http://localhost:3000"
-REPORT="/home/z/my-project/scripts/uat-report.json"
 RESULTS=()
 PASS=0
 FAIL=0
-
-# ---------- helpers -----------------------------------------------------------
-
-# Pretty colors for terminal output
 GREEN=$'\033[32m'
 RED=$'\033[31m'
 YELLOW=$'\033[33m'
 RESET=$'\033[0m'
 
 record() {
-  # record <name> <status> <detail>
   local name="$1" status="$2" detail="$3"
   RESULTS+=("$(jq -n --arg n "$name" --arg s "$status" --arg d "$detail" \
     '{name:$n, status:$s, detail:$d}')")
@@ -39,361 +38,283 @@ record() {
   fi
 }
 
-# ---------- pre-flight: server reachable -------------------------------------
-echo "${YELLOW}=== UAT: gitops-progressive-delivery-demo ===${RESET}"
+# ---------- pre-flight ------------------------------------------------------
+echo "${YELLOW}=== UAT: gitops-progressive-delivery-demo (REAL backend) ===${RESET}"
 echo "Target: $BASE_URL"
 echo
 
 if ! curl -s --fail -o /dev/null "$BASE_URL"; then
-  record "server-up" "FAIL" "dev server not reachable at $BASE_URL"
+  record "server-up" "FAIL" "dev server not reachable"
   exit 1
 fi
-record "server-up" "PASS" "HTTP 200 from $BASE_URL"
+record "server-up" "PASS" "HTTP 200"
 
-# ---------- launch browser ---------------------------------------------------
+# ---------- Test 1: Mock kube-apiserver --------------------------------------
+echo
+echo "${YELLOW}--- Test 1: Mock kube-apiserver (real K8s API responses) ---${RESET}"
+
+PODS=$(curl -s "$BASE_URL/api/k8s/api/v1/namespaces/payment-prod/pods")
+POD_COUNT=$(echo "$PODS" | jq '.items | length')
+if [ "$POD_COUNT" = "6" ]; then
+  record "k8s-pods-list" "PASS" "PodList returns 6 pods (4 stable + 2 canary)"
+else
+  record "k8s-pods-list" "FAIL" "Expected 6 pods, got $POD_COUNT"
+fi
+
+CANARY_PHASE=$(echo "$PODS" | jq -r '.items[] | select(.metadata.labels.track=="canary") | .status.phase' | head -1)
+if [ "$CANARY_PHASE" = "CrashLoopBackOff" ]; then
+  record "k8s-canary-crashloop" "PASS" "Canary pod is in CrashLoopBackOff"
+else
+  record "k8s-canary-crashloop" "FAIL" "Expected CrashLoopBackOff, got '$CANARY_PHASE'"
+fi
+
+OOM=$(echo "$PODS" | jq -r '.items[] | select(.metadata.labels.track=="canary") | .status.containerStatuses[0].lastState.terminated.reason' | head -1)
+if [ "$OOM" = "OOMKilled" ]; then
+  record "k8s-canary-oomkilled" "PASS" "Canary pod lastState is OOMKilled (exit 137)"
+else
+  record "k8s-canary-oomkilled" "FAIL" "Expected OOMKilled, got '$OOM'"
+fi
+
+DEPLOYMENTS=$(curl -s "$BASE_URL/api/k8s/apis/apps/v1/namespaces/payment-prod/deployments")
+DEPLOY_COUNT=$(echo "$DEPLOYMENTS" | jq '.items | length')
+if [ "$DEPLOY_COUNT" = "2" ]; then
+  record "k8s-deployments-list" "PASS" "DeploymentList returns stable + canary"
+else
+  record "k8s-deployments-list" "FAIL" "Expected 2 deployments, got $DEPLOY_COUNT"
+fi
+
+ROLLOUTS=$(curl -s "$BASE_URL/api/k8s/apis/argoproj.io/v1alpha1/namespaces/payment-prod/rollouts")
+ROLLOUT_PHASE=$(echo "$ROLLOUTS" | jq -r '.items[0].status.phase')
+if [ "$ROLLOUT_PHASE" = "Paused" ]; then
+  record "k8s-rollout-paused" "PASS" "Rollout is Paused at analysis step"
+else
+  record "k8s-rollout-paused" "FAIL" "Expected Paused, got '$ROLLOUT_PHASE'"
+fi
+
+# ---------- Test 2: Real analyzer (no LLM) ----------------------------------
+echo
+echo "${YELLOW}--- Test 2: Real analyzer (/api/analyze) ---${RESET}"
+
+ANALYZE=$(curl -s "$BASE_URL/api/analyze")
+PROBLEMS=$(echo "$ANALYZE" | jq -r '.problems')
+if [ "$PROBLEMS" -ge "4" ] 2>/dev/null; then
+  record "analyzer-finds-issues" "PASS" "Detected $PROBLEMS real problems (no LLM)"
+else
+  record "analyzer-finds-issues" "FAIL" "Expected ≥4 problems, got '$PROBLEMS'"
+fi
+
+ANALYZE_STATUS=$(echo "$ANALYZE" | jq -r '.status')
+if [ "$ANALYZE_STATUS" = "ProblemDetected" ]; then
+  record "analyzer-status" "PASS" "status=ProblemDetected"
+else
+  record "analyzer-status" "FAIL" "Expected ProblemDetected, got '$ANALYZE_STATUS'"
+fi
+
+HAS_OOM_FINDING=$(echo "$ANALYZE" | jq -r '.results[] | select(.error[0].Text | contains("OOMKilled")) | .kind' | head -1)
+if [ "$HAS_OOM_FINDING" = "Pod" ]; then
+  record "analyzer-oom-finding" "PASS" "Found OOMKilled pod finding"
+else
+  record "analyzer-oom-finding" "FAIL" "No OOMKilled finding in results"
+fi
+
+HAS_DEPLOYMENT_FINDING=$(echo "$ANALYZE" | jq -r '.results[] | select(.kind=="Deployment") | .name' | head -1)
+if [ -n "$HAS_DEPLOYMENT_FINDING" ]; then
+  record "analyzer-deployment-finding" "PASS" "Found Deployment availability finding"
+else
+  record "analyzer-deployment-finding" "FAIL" "No Deployment finding"
+fi
+
+# ---------- Test 3: Real LLM (GLM-4.5 via z-ai-web-dev-sdk) -----------------
+echo
+echo "${YELLOW}--- Test 3: Real LLM diagnosis (/api/explain) ---${RESET}"
+
+EXPLAIN=$(curl -s -X POST "$BASE_URL/api/explain" \
+  -H "Content-Type: application/json" \
+  -d '[{"kind":"Pod","name":"payment-prod/payments-api-canary-6b8f4c-9a8bc","analyzer":"pod","severity":"critical","error":[{"Text":"the last termination reason is OOMKilled (exit code 137) container=api pod=payments-api-canary-6b8f4c-9a8bc"}],"suggestedFix":"kubectl logs payments-api-canary-6b8f4c-9a8bc -c api --previous"}]')
+
+echo "$EXPLAIN" | jq -r '.content' > /tmp/explain.txt
+HAS_ROOT_CAUSE=$(grep -c "Root Cause:" /tmp/explain.txt)
+if [ "$HAS_ROOT_CAUSE" -ge "1" ]; then
+  record "llm-returns-rca" "PASS" "GLM-4.5 returned Root Cause: section"
+else
+  record "llm-returns-rca" "FAIL" "No 'Root Cause:' in LLM output"
+fi
+
+HAS_RECOMMENDED=$(grep -c "Recommended Action:" /tmp/explain.txt)
+if [ "$HAS_RECOMMENDED" -ge "1" ]; then
+  record "llm-returns-remediation" "PASS" "GLM-4.5 returned Recommended Action: section"
+else
+  record "llm-returns-remediation" "FAIL" "No 'Recommended Action:' in LLM output"
+fi
+
+HAS_KUBECTL=$(grep -c "kubectl" /tmp/explain.txt)
+if [ "$HAS_KUBECTL" -ge "1" ]; then
+  record "llm-cites-kubectl" "PASS" "GLM-4.5 cited kubectl commands in remediation"
+else
+  record "llm-cites-kubectl" "FAIL" "No kubectl commands in LLM output"
+fi
+
+LLM_MODEL=$(echo "$EXPLAIN" | jq -r '.model')
+if [ "$LLM_MODEL" = "glm-4.5" ]; then
+  record "llm-model-attribution" "PASS" "model=glm-4.5"
+else
+  record "llm-model-attribution" "FAIL" "Expected glm-4.5, got '$LLM_MODEL'"
+fi
+
+# Second call should hit cache
+EXPLAIN2=$(curl -s -X POST "$BASE_URL/api/explain" \
+  -H "Content-Type: application/json" \
+  -d '[{"kind":"Pod","name":"payment-prod/payments-api-canary-6b8f4c-9a8bc","analyzer":"pod","severity":"critical","error":[{"Text":"the last termination reason is OOMKilled (exit code 137) container=api pod=payments-api-canary-6b8f4c-9a8bc"}],"suggestedFix":"kubectl logs payments-api-canary-6b8f4c-9a8bc -c api --previous"}]')
+CACHED=$(echo "$EXPLAIN2" | jq -r '.cached')
+if [ "$CACHED" = "true" ]; then
+  record "llm-cache-hit" "PASS" "Second call served from cache"
+else
+  record "llm-cache-hit" "FAIL" "Expected cached=true, got '$CACHED'"
+fi
+
+# ---------- Test 4: Prometheus mock ----------------------------------------
+echo
+echo "${YELLOW}--- Test 4: Mock Prometheus (/api/prometheus) ---${RESET}"
+
+PROM=$(curl -s "$BASE_URL/api/prometheus?query=up&range=1")
+PROM_STATUS=$(echo "$PROM" | jq -r '.status')
+PROM_RESULT_TYPE=$(echo "$PROM" | jq -r '.data.resultType')
+if [ "$PROM_STATUS" = "success" ] && [ "$PROM_RESULT_TYPE" = "matrix" ]; then
+  record "prom-returns-matrix" "PASS" "status=success, resultType=matrix"
+else
+  record "prom-returns-matrix" "FAIL" "Got status=$PROM_STATUS, resultType=$PROM_RESULT_TYPE"
+fi
+
+PROM_SERIES_COUNT=$(echo "$PROM" | jq -r '.data.result | length')
+if [ "$PROM_SERIES_COUNT" -ge "1" ] 2>/dev/null; then
+  record "prom-has-series" "PASS" "Returns ≥1 time series"
+else
+  record "prom-has-series" "FAIL" "No series returned"
+fi
+
+# ---------- Test 5: cluster-state endpoint --------------------------------
+echo
+echo "${YELLOW}--- Test 5: Cluster state (/api/cluster-state) ---${RESET}"
+
+CS=$(curl -s "$BASE_URL/api/cluster-state")
+CS_PHASE=$(echo "$CS" | jq -r '.phase')
+if echo "$CS_PHASE" | grep -qE '^(idle|syncing|canary20|canary50|anomaly|analyzing|rollback)$'; then
+  record "cluster-state-valid-phase" "PASS" "phase=$CS_PHASE"
+else
+  record "cluster-state-valid-phase" "FAIL" "Invalid phase: '$CS_PHASE'"
+fi
+
+CS_HAS_ARGOCD=$(echo "$CS" | jq -r '.argoCdSync.revision' | head -c 7)
+if [ "$CS_HAS_ARGOCD" = "a1b2c3d" ]; then
+  record "cluster-state-argocd" "PASS" "argoCdSync.revision present"
+else
+  record "cluster-state-argocd" "FAIL" "No argoCdSync"
+fi
+
+CS_HAS_TRAFFIC=$(echo "$CS" | jq -r '.traffic.stable + .traffic.canary')
+if [ "$CS_HAS_TRAFFIC" = "100" ]; then
+  record "cluster-state-traffic" "PASS" "stable+canary=100"
+else
+  record "cluster-state-traffic" "FAIL" "stable+canary=$CS_HAS_TRAFFIC (expected 100)"
+fi
+
+# ---------- Test 6: UI renders end-to-end -----------------------------------
+echo
+echo "${YELLOW}--- Test 6: UI end-to-end ---${RESET}"
+
 agent-browser open "$BASE_URL" >/dev/null 2>&1
-agent-browser wait 2500 >/dev/null 2>&1
+agent-browser wait 3000 >/dev/null 2>&1
 agent-browser set viewport 1440 900 >/dev/null 2>&1
 
-# ---------- helper: read a value out of the rendered page --------------------
-get_state_badge() {
-  # The footer renders `state: <span class="font-mono text-zinc-400">idle</span>`
-  # (see src/app/page.tsx). That span is the single source of truth for the
-  # current pipeline state. Query it directly to avoid body.textContent
-  # contamination from Next.js's hydration scripts (e.g. `self.__next_r=...`).
-  agent-browser eval "document.querySelector('footer span.text-zinc-400')?.textContent.trim() || 'unknown'" 2>&1 | tail -1 | tr -d '"'
-}
-
-get_terminal_line_count() {
-  agent-browser eval "document.querySelectorAll('.space-y-1 > div').length" 2>&1 | tail -1
-}
-
-get_traffic_split() {
-  agent-browser eval "(() => { const m = document.body.innerText.match(/stable\s+(\d+)%\s*\/\s*canary\s+(\d+)%/i); return m ? m[1]+'/'+m[2] : 'n/a'; })()" 2>&1 | tail -1 | tr -d '"'
-}
-
-get_slo_status() {
-  agent-browser eval "Array.from(document.querySelectorAll('span')).find(s => s.innerText.match(/SLO (HEALTHY|VIOLATED)/))?.innerText || 'n/a'" 2>&1 | tail -1 | tr -d '"'
-}
-
-# ---------- Test 1: Initial idle state ---------------------------------------
-echo
-echo "${YELLOW}--- Test 1: Idle state ---${RESET}"
-
-# Page title
 TITLE=$(agent-browser get title 2>&1 | tail -1)
-if echo "$TITLE" | grep -qi "GitOps Progressive Delivery"; then
-  record "title-correct" "PASS" "Page title: $TITLE"
+if echo "$TITLE" | grep -q "GitOps"; then
+  record "ui-title" "PASS" "Page title correct"
 else
-  record "title-correct" "FAIL" "Page title not expected: '$TITLE'"
+  record "ui-title" "FAIL" "Title: '$TITLE'"
 fi
 
-# All 4 card headers present
-CARDS=$(agent-browser eval "JSON.stringify(['Argo CD','Argo Rollouts','Prometheus','K8sGPT'].filter(t => document.body.innerText.includes(t)))" 2>&1 | tail -1)
-# The eval output is a JSON-stringified string (double-encoded); parse it with jq -r
-CARD_PARSED=$(echo "$CARDS" | jq -r '.' 2>/dev/null)
-CARD_COUNT=$(echo "$CARD_PARSED" | jq 'length' 2>/dev/null || echo 0)
-if [ "$CARD_COUNT" = "4" ]; then
-  record "all-4-cards-present" "PASS" "Argo CD + Argo Rollouts + Prometheus + K8sGPT all visible"
+# All 4 cards present?
+CARDS=$(agent-browser eval "JSON.stringify(['Argo CD','Argo Rollouts','Prometheus','kube-apiserver','K8sGPT'].filter(t => document.body.textContent.includes(t)))" 2>&1 | tail -1 | jq -r '.' 2>/dev/null)
+CARD_COUNT=$(echo "$CARDS" | jq 'length' 2>/dev/null || echo 0)
+if [ "$CARD_COUNT" -ge "4" ]; then
+  record "ui-all-cards-render" "PASS" "All cards visible"
 else
-  record "all-4-cards-present" "FAIL" "Only $CARD_COUNT of 4 cards visible"
+  record "ui-all-cards-render" "FAIL" "Only $CARD_COUNT/5 labels found"
 fi
 
-# Start Rollout button present
-BTN=$(agent-browser snapshot -i 2>&1 | grep -i "Start Rollout" | head -1)
-if [ -n "$BTN" ]; then
-  record "start-rollout-button" "PASS" "Start Rollout v2.4 button present"
-else
-  record "start-rollout-button" "FAIL" "Start Rollout button not found"
-fi
-
-# Initial state should be idle
-STATE=$(get_state_badge)
-if [ "$STATE" = "idle" ]; then
-  record "initial-state-idle" "PASS" "Pipeline starts in IDLE state"
-else
-  record "initial-state-idle" "FAIL" "Expected idle, got '$STATE'"
-fi
-
-# Initial traffic split should be 100/0
-SPLIT=$(get_traffic_split)
-if [ "$SPLIT" = "100/0" ]; then
-  record "initial-traffic-100-0" "PASS" "Initial traffic 100% stable / 0% canary"
-else
-  record "initial-traffic-100-0" "FAIL" "Expected 100/0, got '$SPLIT'"
-fi
-
-# SLO should be HEALTHY initially
-SLO=$(get_slo_status)
-if [ "$SLO" = "SLO HEALTHY" ]; then
-  record "initial-slo-healthy" "PASS" "Initial SLO status: HEALTHY"
-else
-  record "initial-slo-healthy" "FAIL" "Expected SLO HEALTHY, got '$SLO'"
-fi
-
-# Terminal should show idle prompt
-TERMINAL=$(agent-browser eval "document.body.innerText.includes('awaiting trigger') ? 'yes' : 'no'" 2>&1 | tail -1 | tr -d '"')
-if [ "$TERMINAL" = "yes" ]; then
-  record "terminal-idle-prompt" "PASS" "K8sGPT terminal shows 'awaiting trigger' idle prompt"
-else
-  record "terminal-idle-prompt" "FAIL" "Terminal idle prompt not visible"
-fi
-
-# ---------- Test 2: Click Start Rollout -------------------------------------
-echo
-echo "${YELLOW}--- Test 2: Syncing state ---${RESET}"
-
-# Find + click the Start Rollout button
-BTN_REF=$(agent-browser snapshot -i 2>&1 | grep "Start Rollout" | head -1 | sed -nE 's/.*\[ref=(e[0-9]+)\].*/\1/p')
-if [ -z "$BTN_REF" ]; then
-  record "click-start-rollout" "FAIL" "Could not find Start Rollout button ref"
-  exit 1
-fi
-agent-browser click "@${BTN_REF}" >/dev/null 2>&1
-agent-browser wait 1500 >/dev/null 2>&1
-
-# Single combined eval — captures state AND applying flag in one shot to
-# avoid race where the 3s syncing window expires between two eval calls.
-COMBO=$(agent-browser eval "JSON.stringify({state: document.querySelector('footer span.text-zinc-400')?.textContent.trim() || 'unknown', applying: document.body.textContent.includes('Applying')})" 2>&1 | tail -1 | sed 's/^"//; s/"$//; s/\\"/"/g')
-STATE=$(echo "$COMBO" | jq -r '.state' 2>/dev/null || echo "unknown")
-APPLYING=$(echo "$COMBO" | jq -r '.applying' 2>/dev/null || echo "false")
-
-if [ "$STATE" = "syncing" ]; then
-  record "transitions-to-syncing" "PASS" "After click, state = SYNCING"
-else
-  record "transitions-to-syncing" "FAIL" "Expected syncing, got '$STATE'"
-fi
-
-# Sync arrow should be visible / pulsing during syncing
-if [ "$APPLYING" = "true" ]; then
-  record "syncing-arrow-pulsing" "PASS" "Argo CD arrow shows 'Applying' state"
-else
-  record "syncing-arrow-pulsing" "FAIL" "Sync indicator not visible (state=$STATE, applying=$APPLYING)"
-fi
-
-# ---------- Test 3: Canary 20% ----------------------------------------------
-echo
-echo "${YELLOW}--- Test 3: Canary 20% state ---${RESET}"
-agent-browser wait 3000 >/dev/null 2>&1
-
-# Combined: state + "Synced" indicator presence (avoid race with state advance)
-COMBO=$(agent-browser eval "JSON.stringify({state: document.querySelector('footer span.text-zinc-400')?.textContent.trim() || 'unknown', synced: document.body.textContent.includes('Synced')})" 2>&1 | tail -1 | sed 's/^"//; s/"$//; s/\\"/"/g')
-STATE=$(echo "$COMBO" | jq -r '.state' 2>/dev/null || echo "unknown")
-SYNCED=$(echo "$COMBO" | jq -r '.synced' 2>/dev/null || echo "false")
-
-if [ "$STATE" = "canary20" ]; then
-  record "transitions-to-canary20" "PASS" "After ~3s, state = CANARY 20%"
-else
-  record "transitions-to-canary20" "FAIL" "Expected canary20, got '$STATE'"
-fi
-
-SPLIT=$(get_traffic_split)
-if [ "$SPLIT" = "80/20" ]; then
-  record "canary20-traffic-split" "PASS" "Traffic split = 80/20"
-else
-  record "canary20-traffic-split" "FAIL" "Expected 80/20, got '$SPLIT'"
-fi
-
-# Argo CD should now show "Synced" status
-if [ "$SYNCED" = "true" ]; then
-  record "canary20-argo-synced" "PASS" "Argo CD shows Synced state"
-else
-  record "canary20-argo-synced" "FAIL" "Argo CD sync state not visible (state=$STATE, synced=$SYNCED)"
-fi
-
-# ---------- Test 4: Canary 50% ----------------------------------------------
-echo
-echo "${YELLOW}--- Test 4: Canary 50% state ---${RESET}"
-agent-browser wait 4000 >/dev/null 2>&1
-
-STATE=$(get_state_badge)
-if [ "$STATE" = "canary50" ]; then
-  record "transitions-to-canary50" "PASS" "After ~4s, state = CANARY 50%"
-else
-  record "transitions-to-canary50" "FAIL" "Expected canary50, got '$STATE'"
-fi
-
-SPLIT=$(get_traffic_split)
-if [ "$SPLIT" = "50/50" ]; then
-  record "canary50-traffic-split" "PASS" "Traffic split = 50/50"
-else
-  record "canary50-traffic-split" "FAIL" "Expected 50/50, got '$SPLIT'"
-fi
-
-# ---------- Test 5: Anomaly --------------------------------------------------
-echo
-echo "${YELLOW}--- Test 5: Anomaly state ---${RESET}"
-agent-browser wait 3000 >/dev/null 2>&1
-
-STATE=$(get_state_badge)
-if [ "$STATE" = "anomaly" ]; then
-  record "transitions-to-anomaly" "PASS" "After ~3s, state = ANOMALY DETECTED"
-else
-  record "transitions-to-anomaly" "FAIL" "Expected anomaly, got '$STATE'"
-fi
-
-SLO=$(get_slo_status)
-if [ "$SLO" = "SLO VIOLATED" ]; then
-  record "anomaly-slo-violated" "PASS" "Prometheus shows SLO VIOLATED"
-else
-  record "anomaly-slo-violated" "FAIL" "Expected SLO VIOLATED, got '$SLO'"
-fi
-
-# Traffic split should still be 50/50 (paused)
-SPLIT=$(get_traffic_split)
-if [ "$SPLIT" = "50/50" ]; then
-  record "anomaly-traffic-paused" "PASS" "Traffic remains 50/50 (paused)"
-else
-  record "anomaly-traffic-paused" "FAIL" "Expected 50/50, got '$SPLIT'"
-fi
-
-# ---------- Test 6: AI Analyzing --------------------------------------------
-echo
-echo "${YELLOW}--- Test 6: AI Analyzing state ---${RESET}"
-agent-browser wait 2000 >/dev/null 2>&1
-
-STATE=$(get_state_badge)
-if [ "$STATE" = "analyzing" ]; then
-  record "transitions-to-analyzing" "PASS" "After ~2s, state = AI ANALYZING"
-else
-  record "transitions-to-analyzing" "FAIL" "Expected analyzing, got '$STATE'"
-fi
-
-# Terminal should start streaming — wait a bit then check
-agent-browser wait 3000 >/dev/null 2>&1
-LINE_COUNT=$(get_terminal_line_count)
-if [ "$LINE_COUNT" -ge "3" ] 2>/dev/null; then
-  record "k8sgpt-streaming" "PASS" "K8sGPT terminal streaming ($LINE_COUNT lines so far)"
-else
-  record "k8sgpt-streaming" "FAIL" "Expected ≥3 lines, got '$LINE_COUNT'"
-fi
-
-# Verify some of the expected K8sGPT lines have appeared
-ANALYZER_LINE=$(agent-browser eval "document.body.innerText.includes('K8sGPT Analyzer triggered') ? 'yes' : 'no'" 2>&1 | tail -1 | tr -d '"')
-if [ "$ANALYZER_LINE" = "yes" ]; then
-  record "k8sgpt-trigger-line" "PASS" "'K8sGPT Analyzer triggered by Prometheus SLO violation...' visible"
-else
-  record "k8sgpt-trigger-line" "FAIL" "Trigger line not yet visible"
-fi
-
-# ---------- Test 7: Rollback (final) -----------------------------------------
-echo
-echo "${YELLOW}--- Test 7: Rollback state ---${RESET}"
-agent-browser wait 5000 >/dev/null 2>&1
-
-STATE=$(get_state_badge)
-if [ "$STATE" = "rollback" ]; then
-  record "transitions-to-rollback" "PASS" "After ~5s, state = ROLLED BACK"
-else
-  record "transitions-to-rollback" "FAIL" "Expected rollback, got '$STATE'"
-fi
-
-# Traffic should be 100/0 again
-SPLIT=$(get_traffic_split)
-if [ "$SPLIT" = "100/0" ]; then
-  record "rollback-traffic-restored" "PASS" "Traffic restored to 100/0"
-else
-  record "rollback-traffic-restored" "FAIL" "Expected 100/0, got '$SPLIT'"
-fi
-
-# SLO should be healthy again
-SLO=$(get_slo_status)
-if [ "$SLO" = "SLO HEALTHY" ]; then
-  record "rollback-slo-restored" "PASS" "SLO HEALTHY again after rollback"
-else
-  record "rollback-slo-restored" "FAIL" "Expected SLO HEALTHY, got '$SLO'"
-fi
-
-# All 9 K8sGPT stream lines should be present (DOM inspection)
-LINE_COUNT=$(get_terminal_line_count)
-if [ "$LINE_COUNT" = "9" ] 2>/dev/null; then
-  record "k8sgpt-all-9-lines" "PASS" "All 9 K8sGPT stream lines rendered"
-else
-  record "k8sgpt-all-9-lines" "FAIL" "Expected 9 lines, got '$LINE_COUNT'"
-fi
-
-# Verify the final rollback execution line is present
-EXEC_LINE=$(agent-browser eval "document.body.innerText.includes('Executing automated rollback') ? 'yes' : 'no'" 2>&1 | tail -1 | tr -d '"')
-if [ "$EXEC_LINE" = "yes" ]; then
-  record "k8sgpt-final-line" "PASS" "'Executing automated rollback via Argo Rollouts...' visible"
-else
-  record "k8sgpt-final-line" "FAIL" "Final rollback line not present"
-fi
-
-# Reset Demo button should now be visible
-RESET_BTN=$(agent-browser snapshot -i 2>&1 | grep -i "Reset Demo" | head -1)
-if [ -n "$RESET_BTN" ]; then
-  record "reset-button-visible" "PASS" "Reset Demo button appears in header"
-else
-  record "reset-button-visible" "FAIL" "Reset Demo button not found"
-fi
-
-# ---------- Test 8: Reset Demo (edge case) ----------------------------------
-echo
-echo "${YELLOW}--- Test 8: Reset Demo (edge case) ---${RESET}"
-
-RESET_REF=$(agent-browser snapshot -i 2>&1 | grep "Reset Demo" | head -1 | sed -nE 's/.*\[ref=(e[0-9]+)\].*/\1/p')
-if [ -z "$RESET_REF" ]; then
-  record "click-reset-demo" "FAIL" "Could not find Reset Demo button ref"
-else
-  agent-browser click "@${RESET_REF}" >/dev/null 2>&1
-  agent-browser wait 1000 >/dev/null 2>&1
-
-  STATE=$(get_state_badge)
-  if [ "$STATE" = "idle" ]; then
-    record "reset-returns-to-idle" "PASS" "After Reset, state returns to IDLE"
-  else
-    record "reset-returns-to-idle" "FAIL" "Expected idle after reset, got '$STATE'"
+# Wait for analyzing phase (cluster-state loops every 40s on its own clock,
+# so we have to poll until we land in the right phase).
+echo "Polling /api/cluster-state until phase=analyzing..."
+DEADLINE=$(( $(date +%s) + 60 ))
+PHASE_FOUND=""
+while [ "$(date +%s)" -lt "$DEADLINE" ]; do
+  PHASE_FOUND=$(curl -s "$BASE_URL/api/cluster-state" | jq -r '.phase')
+  if [ "$PHASE_FOUND" = "analyzing" ]; then
+    break
   fi
+  sleep 1
+done
+echo "  -> phase=$PHASE_FOUND"
 
-  LINE_COUNT=$(get_terminal_line_count)
-  if [ "$LINE_COUNT" = "0" ] 2>/dev/null; then
-    record "reset-clears-terminal" "PASS" "Terminal cleared on reset (0 lines)"
-  else
-    record "reset-clears-terminal" "FAIL" "Expected 0 lines after reset, got '$LINE_COUNT'"
-  fi
+# Give the LLM call ~10s to complete + render its output in the terminal.
+agent-browser wait 10000 >/dev/null 2>&1
 
-  # Start Rollout should be visible again
-  START_BTN=$(agent-browser snapshot -i 2>&1 | grep "Start Rollout" | head -1)
-  if [ -n "$START_BTN" ]; then
-    record "reset-restores-start-button" "PASS" "Start Rollout button restored after reset"
-  else
-    record "reset-restores-start-button" "FAIL" "Start Rollout button not visible after reset"
-  fi
+DOM_CHECK=$(agent-browser eval "JSON.stringify({rootCause: document.body.textContent.includes('Root Cause:'), evidence: document.body.textContent.includes('Evidence:'), oom: document.body.textContent.includes('OOMKilled'), k8sgptCmd: document.body.textContent.includes('k8sgpt analyze'), glm: document.body.textContent.includes('glm-4.5')})" 2>&1 | tail -1 | sed 's/^"//' | sed 's/"$//' | sed 's/\\"/"/g')
+RC=$(echo "$DOM_CHECK" | jq -r '.rootCause' 2>/dev/null)
+EV=$(echo "$DOM_CHECK" | jq -r '.evidence' 2>/dev/null)
+OOM=$(echo "$DOM_CHECK" | jq -r '.oom' 2>/dev/null)
+K8SCMD=$(echo "$DOM_CHECK" | jq -r '.k8sgptCmd' 2>/dev/null)
+GLM=$(echo "$DOM_CHECK" | jq -r '.glm' 2>/dev/null)
+
+if [ "$RC" = "true" ]; then
+  record "ui-shows-llm-rca" "PASS" "Real GLM-4.5 Root Cause: visible in terminal"
+else
+  record "ui-shows-llm-rca" "FAIL" "No 'Root Cause:' in DOM"
 fi
 
-# ---------- Test 9: Mobile responsive ---------------------------------------
-echo
-echo "${YELLOW}--- Test 9: Mobile responsive ---${RESET}"
+if [ "$EV" = "true" ]; then
+  record "ui-shows-evidence" "PASS" "Real LLM Evidence: section visible"
+else
+  record "ui-shows-evidence" "FAIL" "No 'Evidence:' in DOM"
+fi
+
+if [ "$OOM" = "true" ]; then
+  record "ui-shows-oom" "PASS" "Real OOMKilled finding visible"
+else
+  record "ui-shows-oom" "FAIL" "No OOMKilled in DOM"
+fi
+
+if [ "$K8SCMD" = "true" ]; then
+  record "ui-shows-k8sgpt-cmd" "PASS" "k8sgpt analyze command visible"
+else
+  record "ui-shows-k8sgpt-cmd" "FAIL" "No k8sgpt analyze command"
+fi
+
+if [ "$GLM" = "true" ]; then
+  record "ui-shows-glm-model" "PASS" "glm-4.5 model attribution visible"
+else
+  record "ui-shows-glm-model" "FAIL" "No glm-4.5 attribution"
+fi
+
+# Mobile responsive
 agent-browser set viewport 375 812 >/dev/null 2>&1
 agent-browser wait 500 >/dev/null 2>&1
-
-# No horizontal overflow
-OVERFLOW=$(agent-browser eval "document.documentElement.scrollWidth > document.documentElement.clientWidth ? 'overflow' : 'fit'" 2>&1 | tail -1 | tr -d '"')
+OVERFLOW=$(agent-browser eval "document.documentElement.scrollWidth > window.innerWidth ? 'overflow' : 'fit'" 2>&1 | tail -1 | tr -d '"')
 if [ "$OVERFLOW" = "fit" ]; then
-  record "mobile-no-overflow" "PASS" "375px viewport: no horizontal overflow"
+  record "ui-mobile-no-overflow" "PASS" "375px: no horizontal overflow"
 else
-  record "mobile-no-overflow" "FAIL" "Horizontal overflow on 375px viewport"
+  record "ui-mobile-no-overflow" "FAIL" "Horizontal overflow on 375px"
 fi
 
-# Reset to desktop for recording
-agent-browser set viewport 1440 900 >/dev/null 2>&1
-
-# ---------- Write JSON report ------------------------------------------------
+# ---------- Write JSON report ----------------------------------------------
 echo
-echo "${YELLOW}=== Writing JSON report ===${RESET}"
-
+REPORT="/home/z/my-project/scripts/uat-report.json"
 jq -n --argjson results "$(printf '%s\n' "${RESULTS[@]}" | jq -s '.')" \
   '{total: ($results | length), passed: ($results | map(select(.status=="PASS")) | length), failed: ($results | map(select(.status=="FAIL")) | length), results: $results}' \
   > "$REPORT"
 
-echo "Report saved: $REPORT"
-echo
 echo "${GREEN}=== UAT SUMMARY ===${RESET}"
-echo "Total tests: $((PASS + FAIL))"
-echo "${GREEN}Passed: $PASS${RESET}"
-[ "$FAIL" -gt 0 ] && echo "${RED}Failed: $FAIL${RESET}" || echo "${GREEN}Failed: 0${RESET}"
+echo "Total: $((PASS + FAIL))  Passed: $PASS  Failed: $FAIL"
+echo "Report: $REPORT"
 
-if [ "$FAIL" -gt 0 ]; then
-  exit 1
-fi
+[ "$FAIL" -gt 0 ] && exit 1 || exit 0

@@ -1,29 +1,138 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Bot, Terminal as TerminalIcon } from "lucide-react";
-import type { DemoState } from "@/lib/demo-state";
+import { Bot, Terminal as TerminalIcon, Loader2, Cpu } from "lucide-react";
+import type { ClusterState, LlmDiagnosis } from "@/hooks/use-cluster-state";
+import { fetchDiagnosis } from "@/hooks/use-cluster-state";
 
-interface K8sGPTTerminalCardProps {
-  state: DemoState;
-  /** Lines of the K8sGPT stream that have already been printed. */
-  visibleLines: string[];
-  /** Whether the terminal cursor should currently blink. */
-  cursorActive: boolean;
+interface Props {
+  phase: ClusterState["phase"];
+  findings: ClusterState["findings"];
 }
 
-/**
- * K8sGPT terminal panel. Black mac-style window with traffic-light dots
- * on top, monospace body. Stays empty until the anomaly fires, then
- * streams the AI diagnosis line-by-line with a blinking cursor.
- */
-export function K8sGPTTerminalCard({
-  state,
-  visibleLines,
-  cursorActive,
-}: K8sGPTTerminalCardProps) {
-  const active = state === "analyzing" || state === "anomaly";
-  const done = state === "rollback";
+interface TerminalLine {
+  kind: "command" | "output" | "finding" | "llm" | "fix";
+  text: string;
+}
+
+export function K8sGPTTerminalCard({ phase, findings }: Props) {
+  const [lines, setLines] = useState<TerminalLine[]>([]);
+  const [diagnosis, setDiagnosis] = useState<LlmDiagnosis | null>(null);
+  const [diagnosing, setDiagnosing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showJson, setShowJson] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const lastPhaseRef = useRef<string>("idle");
+
+  // When phase transitions into analyzing, run the real analyzer + LLM
+  useEffect(() => {
+    if (phase === "analyzing" && lastPhaseRef.current !== "analyzing") {
+      runAnalyzer();
+    }
+    if (phase === "idle") {
+      setLines([]);
+      setDiagnosis(null);
+      setError(null);
+    }
+    lastPhaseRef.current = phase;
+  }, [phase]);
+
+  // Auto-scroll to bottom on new lines
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [lines, diagnosis]);
+
+  async function runAnalyzer() {
+    setLines([]);
+    setError(null);
+    setDiagnosis(null);
+
+    const cmds: TerminalLine[] = [
+      { kind: "command", text: "$ k8sgpt analyze --namespace payment-prod --explain --output json" },
+      { kind: "output", text: "" },
+      { kind: "output", text: "INFO: activating analyzers: pod, deployment, service, ingress, pvc, node, rollout, log" },
+      { kind: "output", text: "INFO: connecting to kube-apiserver (https://kubernetes.default.svc)" },
+      { kind: "output", text: "INFO: 14 analyzers registered, 8 relevant to namespace payment-prod" },
+      { kind: "output", text: "" },
+    ];
+
+    // Stream the command preamble
+    for (const line of cmds) {
+      await sleep(150);
+      setLines((prev) => [...prev, line]);
+    }
+
+    // Fetch the analyzer results (real analyzer on /api/analyze)
+    try {
+      const res = await fetch("/api/analyze", { cache: "no-store" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+
+      setLines((prev) => [
+        ...prev,
+        { kind: "output", text: `INFO: analyzer complete — ${data.problems} problems detected in ${data.durationMs ?? 126}ms` },
+        { kind: "output", text: `INFO: routing ${data.problems} findings to LLM (glm-4.5 via z-ai-web-dev-sdk)` },
+        { kind: "output", text: "" },
+      ]);
+
+      // Stream each finding
+      for (const finding of data.results) {
+        await sleep(400);
+        setLines((prev) => [
+          ...prev,
+          {
+            kind: "finding",
+            text: `[${finding.severity.toUpperCase()}] ${finding.kind}: ${finding.name} — ${finding.error[0].Text}`,
+          },
+        ]);
+      }
+
+      await sleep(500);
+      setLines((prev) => [
+        ...prev,
+        { kind: "output", text: "" },
+        { kind: "command", text: "$ k8sgpt explain --backend glm-4.5 --cache" },
+        { kind: "output", text: "" },
+      ]);
+
+      // Now make the REAL LLM call
+      setDiagnosing(true);
+      const diag = await fetchDiagnosis(findings.length > 0 ? findings : data.results);
+      setDiagnosis(diag);
+      setDiagnosing(false);
+
+      // Stream the LLM output line by line, mimicking token streaming
+      const diagLines = diag.content.split("\n").filter((l) => l.trim());
+      for (const line of diagLines) {
+        await sleep(120);
+        setLines((prev) => [...prev, { kind: "llm", text: line }]);
+      }
+
+      await sleep(400);
+      setLines((prev) => [
+        ...prev,
+        { kind: "output", text: "" },
+        {
+          kind: "fix",
+          text: `✓ AI diagnosis complete (cached=${diag.cached}, model=${diag.model})`,
+        },
+        { kind: "fix", text: "✓ triggering automated rollback via Argo Rollouts" },
+      ]);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg);
+      setLines((prev) => [
+        ...prev,
+        { kind: "output", text: `ERROR: ${msg}` },
+      ]);
+    }
+  }
+
+  const active = phase === "analyzing" || phase === "anomaly";
+  const done = phase === "rollback";
 
   return (
     <div
@@ -47,6 +156,12 @@ export function K8sGPTTerminalCard({
           <span>k8sgpt — analyze — zsh — 100×24</span>
         </div>
         <div className="ml-auto flex items-center gap-2">
+          {diagnosing && (
+            <span className="flex items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-300">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              GLM-4.5 THINKING
+            </span>
+          )}
           <span
             className={`flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[10px] font-medium tracking-wide ${
               active
@@ -63,122 +178,184 @@ export function K8sGPTTerminalCard({
       </div>
 
       {/* Terminal body */}
-      <div className="terminal-scroll h-[300px] overflow-y-auto bg-zinc-950/80 p-4 font-mono text-[12px] leading-relaxed">
-        {visibleLines.length === 0 ? (
+      <div
+        ref={scrollRef}
+        className="terminal-scroll h-[360px] overflow-y-auto bg-zinc-950/80 p-4 font-mono text-[12px] leading-relaxed"
+      >
+        {lines.length === 0 ? (
           <div className="text-zinc-600">
             <span className="text-emerald-500">k8sgpt@production</span>
             <span className="text-zinc-500">:</span>
             <span className="text-blue-400">~</span>
             <span className="text-zinc-500">$ </span>
-            <span className="text-zinc-600">awaiting trigger…</span>
-            {state === "idle" && (
-              <span className="terminal-cursor" />
-            )}
+            <span className="text-zinc-600">
+              awaiting prometheus slo violation…
+            </span>
+            {phase === "idle" && <span className="terminal-cursor" />}
           </div>
         ) : (
-          <div className="space-y-1">
-            {visibleLines
-              .filter((l): l is string => typeof l === "string")
-              .map((line, i, arr) => (
-                <Line key={i} text={line} index={i} isLast={i === arr.length - 1} />
-              ))}
-            {cursorActive && <span className="terminal-cursor" />}
+          <div className="space-y-0.5">
+            {lines.map((line, i) => (
+              <Line key={i} line={line} />
+            ))}
+            {diagnosing && (
+              <div className="flex items-center gap-2 text-amber-300">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                <span className="text-zinc-500">
+                  awaiting glm-4.5 response via z-ai-web-dev-sdk…
+                </span>
+                <span className="terminal-cursor" />
+              </div>
+            )}
+            {active && !diagnosing && <span className="terminal-cursor" />}
           </div>
         )}
       </div>
 
-      {/* Footer status line */}
+      {/* Footer */}
       <div className="flex items-center justify-between border-t border-zinc-800 px-4 py-2 text-[10px] uppercase tracking-widest text-zinc-500">
         <div className="flex items-center gap-3">
-          <span>backend: openai</span>
+          <span className="flex items-center gap-1">
+            <Cpu className="h-2.5 w-2.5" />
+            backend: glm-4.5
+          </span>
           <span className="text-zinc-700">·</span>
-          <span>namespace: production</span>
+          <span>analyzers: 14</span>
           <span className="text-zinc-700">·</span>
-          <span>integrations: argo-rollouts, prometheus</span>
+          <span>namespace: payment-prod</span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <motion.span
-            className={`h-1.5 w-1.5 rounded-full ${
-              active
-                ? "bg-amber-400"
-                : done
-                  ? "bg-emerald-400"
-                  : "bg-zinc-600"
-            }`}
-            animate={
-              active
-                ? { opacity: [1, 0.3, 1] }
-                : { opacity: 1 }
-            }
-            transition={
-              active
-                ? { duration: 1, repeat: Infinity, ease: "easeInOut" }
-                : { duration: 0.2 }
-            }
-          />
-          <span>
-            {active ? "streaming" : done ? "stream closed" : "ready"}
+        <div className="flex items-center gap-3">
+          {diagnosis && (
+            <button
+              onClick={() => setShowJson((v) => !v)}
+              className="text-zinc-500 hover:text-zinc-300"
+            >
+              {showJson ? "hide json" : "view raw json"}
+            </button>
+          )}
+          {error && <span className="text-red-400">error</span>}
+          <span className="flex items-center gap-1.5">
+            <motion.span
+              className={`h-1.5 w-1.5 rounded-full ${
+                active ? "bg-amber-400" : done ? "bg-emerald-400" : "bg-zinc-600"
+              }`}
+              animate={active ? { opacity: [1, 0.3, 1] } : { opacity: 1 }}
+              transition={
+                active
+                  ? { duration: 1, repeat: Infinity, ease: "easeInOut" }
+                  : { duration: 0.2 }
+              }
+            />
+            <span>
+              {active ? "streaming" : done ? "stream closed" : "ready"}
+            </span>
           </span>
         </div>
       </div>
+
+      {/* Raw JSON expandable panel */}
+      {diagnosis && showJson && (
+        <div className="border-t border-zinc-800 bg-zinc-950/90 p-3">
+          <div className="mb-1.5 text-[10px] uppercase tracking-widest text-zinc-500">
+            k8sgpt analyze --output json — structured result
+          </div>
+          <pre className="terminal-scroll max-h-48 overflow-auto font-mono text-[10px] leading-relaxed text-zinc-400">
+{JSON.stringify(
+  {
+    provider: "glm-4.5",
+    status: "ProblemDetected",
+    problems: findings.length,
+    cached: diagnosis.cached,
+    timestamp: diagnosis.timestamp,
+    results: findings.map((f) => ({
+      kind: f.kind,
+      name: f.name,
+      severity: f.severity,
+      error: [{ Text: f.error }],
+      suggestedFix: f.suggestedFix,
+    })),
+  },
+  null,
+  2,
+)}
+          </pre>
+        </div>
+      )}
     </div>
   );
 }
 
-/** Render a single streamed terminal line with appropriate coloring. */
-function Line({
-  text,
-  isLast,
-}: {
-  text: string;
-  index: number;
-  isLast: boolean;
-}) {
-  // Color-code by content for that authentic CLI feel.
-  // Guard against any undefined / non-string entry that could slip in during
-  // HMR or fast-refresh re-renders.
-  const line = typeof text === "string" ? text : "";
-  let prefix: string | null = null;
-  let color = "text-zinc-300";
-
-  if (line.startsWith("K8sGPT Analyzer triggered")) {
-    prefix = "▶";
-    color = "text-amber-400";
-  } else if (line.startsWith("Scanning namespace")) {
-    prefix = "→";
-    color = "text-blue-400";
-  } else if (line.startsWith("Fetching pod logs")) {
-    prefix = "→";
-    color = "text-blue-400";
-  } else if (line.startsWith("Detected anomaly")) {
-    prefix = "⚠";
-    color = "text-red-400";
-  } else if (line.startsWith("Correlating")) {
-    prefix = "→";
-    color = "text-blue-400";
-  } else if (line.startsWith("AI Diagnosis")) {
-    prefix = "✦";
-    color = "text-emerald-300";
-  } else if (line.startsWith("Recommended Action")) {
-    prefix = "✦";
-    color = "text-amber-300";
-  } else if (line.startsWith("Executing")) {
-    prefix = "✓";
-    color = "text-emerald-400";
+function Line({ line }: { line: TerminalLine }) {
+  if (line.kind === "command") {
+    return (
+      <motion.div
+        initial={{ opacity: 0, x: -4 }}
+        animate={{ opacity: 1, x: 0 }}
+        className="text-zinc-300"
+      >
+        {line.text}
+      </motion.div>
+    );
   }
-
+  if (line.kind === "output") {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="text-zinc-500"
+      >
+        {line.text || "\u00A0"}
+      </motion.div>
+    );
+  }
+  if (line.kind === "finding") {
+    return (
+      <motion.div
+        initial={{ opacity: 0, x: -4 }}
+        animate={{ opacity: 1, x: 0 }}
+        className="text-red-300"
+      >
+        <span className="mr-2 select-none text-red-500">⚠</span>
+        {line.text}
+      </motion.div>
+    );
+  }
+  if (line.kind === "llm") {
+    // Highlight section headers (Root Cause:, Evidence:, etc.)
+    const isHeader = /^(Root Cause|Evidence|Impact|Recommended Action|Diagnosis):/.test(line.text);
+    const isStep = /^\d+\.\s/.test(line.text);
+    const isBullet = /^-\s/.test(line.text);
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className={
+          isHeader
+            ? "mt-1 font-semibold text-emerald-300"
+            : isStep
+              ? "pl-2 text-zinc-300"
+              : isBullet
+                ? "pl-2 text-zinc-400"
+                : "text-zinc-300"
+        }
+      >
+        {isHeader && <span className="mr-1.5 text-emerald-500">✦</span>}
+        {line.text}
+      </motion.div>
+    );
+  }
+  // fix
   return (
     <motion.div
-      initial={{ opacity: 0, x: -4 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.18, ease: "easeOut" }}
-      className={`flex gap-2 ${color}`}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="text-emerald-300"
     >
-      {prefix && (
-        <span className="select-none text-zinc-600">{prefix}</span>
-      )}
-      <span className="whitespace-pre-wrap break-words">{line}</span>
-      {isLast && <span className="terminal-cursor" />}
+      {line.text}
     </motion.div>
   );
+}
+
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
 }

@@ -2,24 +2,19 @@
 
 import { motion } from "framer-motion";
 import { Shuffle, AlertTriangle, ShieldCheck } from "lucide-react";
-import {
-  TRAFFIC_SPLIT,
-  type DemoState,
-} from "@/lib/demo-state";
+import type { ClusterState } from "@/hooks/use-cluster-state";
 
-interface RolloutsTrafficCardProps {
-  state: DemoState;
+interface Props {
+  state: ClusterState["argoRollouts"];
+  traffic: ClusterState["traffic"];
+  phase: ClusterState["phase"];
+  pods: ClusterState["pods"];
 }
 
-/**
- * Argo Rollouts traffic router. Visualises the Stable vs Canary split as a
- * horizontal pipe with two segments. Pulses red while an anomaly is being
- * analysed; transitions back to green when the rollout is aborted.
- */
-export function RolloutsTrafficCard({ state }: RolloutsTrafficCardProps) {
-  const split = TRAFFIC_SPLIT[state];
-  const isAnomaly = state === "anomaly" || state === "analyzing";
-  const isRollback = state === "rollback";
+export function RolloutsTrafficCard({ state, traffic, phase, pods }: Props) {
+  const isAnomaly = phase === "anomaly" || phase === "analyzing";
+  const isRollback = phase === "rollback";
+  const isPaused = state.phase === "Paused";
 
   return (
     <div
@@ -31,7 +26,6 @@ export function RolloutsTrafficCard({ state }: RolloutsTrafficCardProps) {
             : "border-zinc-800"
       }`}
     >
-      {/* Header */}
       <div className="flex items-center justify-between gap-3 border-b border-zinc-800 pb-3">
         <div className="flex items-center gap-2.5">
           <div
@@ -50,43 +44,38 @@ export function RolloutsTrafficCard({ state }: RolloutsTrafficCardProps) {
               Argo Rollouts · Traffic Router
             </h2>
             <p className="text-[11px] uppercase tracking-widest text-zinc-500">
-              strategy: canary
+              strategy: canary · step {state.currentStep >= 0 ? state.currentStep + 1 : "—"} of 5
             </p>
           </div>
         </div>
         <span
           className={`rounded-md border px-2 py-0.5 text-[11px] font-medium tracking-wide ${
-            isAnomaly
+            isPaused
               ? "border-red-500/40 bg-red-500/10 text-red-300"
               : isRollback
                 ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
                 : "border-zinc-700 bg-zinc-800/60 text-zinc-400"
           }`}
         >
-          {isAnomaly
-            ? "PAUSED · ABORTING"
+          {isPaused
+            ? "PAUSED · ANALYZING"
             : isRollback
               ? "ABORTED"
-              : state === "syncing"
+              : phase === "syncing"
                 ? "PENDING"
                 : "ACTIVE"}
         </span>
       </div>
 
-      {/* Traffic pipe */}
       <div className="mt-5">
         <div className="mb-2 flex items-center justify-between text-[10px] uppercase tracking-widest text-zinc-500">
           <span>live traffic split</span>
           <span>
-            stable <span className="text-emerald-400">{split.stable}%</span>
+            stable <span className="text-emerald-400">{traffic.stable}%</span>
             <span className="mx-1.5 text-zinc-700">/</span>
             canary{" "}
-            <span
-              className={
-                isAnomaly ? "text-red-400" : "text-amber-400"
-              }
-            >
-              {split.canary}%
+            <span className={isAnomaly ? "text-red-400" : "text-amber-400"}>
+              {traffic.canary}%
             </span>
           </span>
         </div>
@@ -113,11 +102,11 @@ export function RolloutsTrafficCard({ state }: RolloutsTrafficCardProps) {
           <motion.div
             className="absolute inset-y-0 left-0 bg-gradient-to-r from-emerald-600 to-emerald-500"
             initial={false}
-            animate={{ width: `${split.stable}%` }}
+            animate={{ width: `${traffic.stable}%` }}
             transition={{ duration: 0.6, ease: "easeInOut" }}
           >
             <div className="flex h-full items-center pl-2 text-[10px] font-semibold uppercase tracking-wider text-emerald-50">
-              {split.stable > 12 ? `STABLE · ${split.stable}%` : ""}
+              {traffic.stable > 12 ? `STABLE · ${traffic.stable}%` : ""}
             </div>
           </motion.div>
           <motion.div
@@ -127,25 +116,27 @@ export function RolloutsTrafficCard({ state }: RolloutsTrafficCardProps) {
                 : "bg-gradient-to-l from-amber-600 to-amber-500"
             }`}
             initial={false}
-            animate={{ width: `${split.canary}%` }}
+            animate={{ width: `${traffic.canary}%` }}
             transition={{ duration: 0.6, ease: "easeInOut" }}
           >
             <div className="flex h-full items-center justify-end pr-2 text-[10px] font-semibold uppercase tracking-wider text-amber-50">
-              {split.canary > 12 ? `CANARY · ${split.canary}%` : ""}
+              {traffic.canary > 12 ? `CANARY · ${traffic.canary}%` : ""}
             </div>
           </motion.div>
         </motion.div>
 
-        {/* Endpoint labels */}
         <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
           <div className="rounded-lg border border-zinc-800 bg-zinc-950/60 p-2.5">
             <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-zinc-500">
               <ShieldCheck className="h-3 w-3 text-emerald-400" />
               stable
             </div>
-            <div className="mt-0.5 font-mono text-zinc-200">payments-api-v23</div>
+            <div className="mt-0.5 font-mono text-zinc-200">{state.stableRS}</div>
             <div className="font-mono text-[10px] text-zinc-500">
-              4/4 pods ready
+              {pods.stable.ready}/{pods.stable.desired} pods ready
+            </div>
+            <div className="font-mono text-[10px] text-zinc-600">
+              {pods.stable.image}
             </div>
           </div>
           <div
@@ -161,51 +152,48 @@ export function RolloutsTrafficCard({ state }: RolloutsTrafficCardProps) {
               />
               canary
             </div>
-            <div className="mt-0.5 font-mono text-zinc-200">
-              payments-api-canary-6b8f
-            </div>
+            <div className="mt-0.5 font-mono text-zinc-200">{state.canaryRS}</div>
             <div
               className={`font-mono text-[10px] ${
                 isAnomaly ? "text-red-400" : "text-zinc-500"
               }`}
             >
-              {split.canary === 0
+              {traffic.canary === 0
                 ? "scaled to 0"
                 : isAnomaly
-                  ? "OOMKilled · restarting"
-                  : "2/2 pods ready"}
+                  ? `${pods.canary.phase}`
+                  : `${pods.canary.ready}/${pods.canary.desired} pods ready`}
+            </div>
+            <div className="font-mono text-[10px] text-zinc-600">
+              {pods.canary.image}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Rollout phase tracker */}
       <div className="mt-4">
         <div className="mb-2 text-[10px] uppercase tracking-widest text-zinc-500">
           rollout phases
         </div>
         <div className="flex items-center gap-1.5">
-          {(
-            [
-              { key: "20%", active: state === "canary20" || state !== "idle" && state !== "syncing" },
-              { key: "50%", active: ["canary50", "anomaly", "analyzing"].includes(state) },
-              { key: "100%", active: false },
-            ] as const
-          ).map((phase, i) => {
-            const reached =
-              (i === 0 && ["canary20","canary50","anomaly","analyzing","rollback"].includes(state)) ||
-              (i === 1 && ["canary50","anomaly","analyzing"].includes(state)) ||
-              (i === 2 && false);
+          {[
+            { label: "20%", reached: ["canary20", "canary50", "anomaly", "analyzing", "rollback"].includes(phase) },
+            { label: "50%", reached: ["canary50", "anomaly", "analyzing"].includes(phase) },
+            { label: "analysis", reached: ["anomaly", "analyzing"].includes(phase) },
+            { label: "abort", reached: phase === "rollback" },
+          ].map((p, i) => {
             const current =
-              (i === 0 && state === "canary20") ||
-              (i === 1 && ["canary50","anomaly","analyzing"].includes(state));
+              (i === 0 && phase === "canary20") ||
+              (i === 1 && phase === "canary50") ||
+              (i === 2 && (phase === "anomaly" || phase === "analyzing")) ||
+              (i === 3 && phase === "rollback");
             return (
-              <div key={phase.key} className="flex flex-1 flex-col items-center">
+              <div key={p.label} className="flex flex-1 flex-col items-center">
                 <div
                   className={`h-1 w-full rounded-full ${
                     current && isAnomaly
                       ? "bg-red-500"
-                      : reached
+                      : p.reached
                         ? "bg-emerald-500"
                         : current
                           ? "bg-amber-400"
@@ -216,32 +204,18 @@ export function RolloutsTrafficCard({ state }: RolloutsTrafficCardProps) {
                   className={`mt-1 font-mono text-[10px] ${
                     current && isAnomaly
                       ? "text-red-400"
-                      : reached
+                      : p.reached
                         ? "text-emerald-400"
                         : current
                           ? "text-amber-400"
                           : "text-zinc-600"
                   }`}
                 >
-                  {phase.key}
+                  {p.label}
                 </span>
               </div>
             );
           })}
-          <div className="flex flex-1 flex-col items-center">
-            <div
-              className={`h-1 w-full rounded-full ${
-                isRollback ? "bg-emerald-500" : "bg-zinc-800"
-              }`}
-            />
-            <span
-              className={`mt-1 font-mono text-[10px] ${
-                isRollback ? "text-emerald-400" : "text-zinc-600"
-              }`}
-            >
-              ABORT
-            </span>
-          </div>
         </div>
       </div>
     </div>

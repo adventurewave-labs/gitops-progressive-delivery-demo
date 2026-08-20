@@ -1,32 +1,27 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { GitBranch, Server, Check, RefreshCw, ArrowRight } from "lucide-react";
-import type { DemoState } from "@/lib/demo-state";
+import {
+  GitBranch,
+  Server,
+  Check,
+  RefreshCw,
+  ArrowRight,
+  ExternalLink,
+} from "lucide-react";
+import type { ClusterState } from "@/hooks/use-cluster-state";
 
-interface ArgoSyncCardProps {
-  state: DemoState;
+interface Props {
+  state: ClusterState["argoCdSync"];
+  phase: ClusterState["phase"];
 }
 
-/**
- * Argo CD sync view. Shows the Git commit being synced to the in-cluster
- * `payments-api` application. The middle arrow pulses amber while Argo CD
- * is applying manifests, then turns emerald once synced.
- */
-export function ArgoSyncCard({ state }: ArgoSyncCardProps) {
-  const isSyncing = state === "syncing";
-  const isSynced =
-    state === "canary20" ||
-    state === "canary50" ||
-    state === "anomaly" ||
-    state === "analyzing" ||
-    state === "rollback";
-
-  const isReverted = state === "rollback";
+export function ArgoSyncCard({ state, phase }: Props) {
+  const isSyncing = phase === "syncing";
+  const isReverted = phase === "rollback";
 
   return (
     <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5 backdrop-blur">
-      {/* Header */}
       <div className="flex items-center justify-between gap-3 border-b border-zinc-800 pb-3">
         <div className="flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-md bg-blue-500/10 text-blue-400">
@@ -47,43 +42,41 @@ export function ArgoSyncCard({ state }: ArgoSyncCardProps) {
               ? "border-blue-500/40 bg-blue-500/10 text-blue-300"
               : isReverted
                 ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
-                : isSynced
-                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
-                  : "border-zinc-700 bg-zinc-800/60 text-zinc-400"
+                : "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
           }`}
         >
           {isSyncing
             ? "SYNCING"
             : isReverted
               ? "SYNCED · REVERTED"
-              : isSynced
-                ? "SYNCED"
-                : "HEALTHY"}
+              : "SYNCED"}
         </span>
       </div>
 
-      {/* Body: Git repo -> arrow -> cluster */}
       <div className="mt-5 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-        {/* Git repo side */}
+        {/* Git */}
         <div className="rounded-lg border border-zinc-800 bg-zinc-950/60 p-3">
           <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-zinc-500">
             <GitBranch className="h-3 w-3" />
-            Git Repository
+            git repository
           </div>
-          <div className="mt-1.5 font-mono text-sm text-zinc-200">
-            adventurewave-labs/payments
+          <div className="mt-1.5 truncate font-mono text-sm text-zinc-200">
+            {state.repo}
           </div>
           <div className="mt-1 flex items-center gap-1.5 font-mono text-xs text-zinc-400">
-            <span className="text-emerald-400">main</span>
+            <span className="text-emerald-400">{state.branch}</span>
             <span className="text-zinc-600">@</span>
-            <span className="text-amber-300">a1b2c3d</span>
+            <span className="text-amber-300">{state.shortRevision}</span>
           </div>
-          <div className="mt-1.5 font-mono text-[11px] text-zinc-500">
-            commit: &quot;feat: bump payments-api to v2.4&quot;
+          <div className="mt-1.5 truncate font-mono text-[11px] text-zinc-500">
+            {state.message}
+          </div>
+          <div className="mt-1.5 truncate font-mono text-[10px] text-zinc-600">
+            by {state.author}
           </div>
         </div>
 
-        {/* Arrow / sync indicator */}
+        {/* Arrow */}
         <div className="flex flex-col items-center justify-center px-2">
           <motion.div
             animate={
@@ -99,58 +92,58 @@ export function ArgoSyncCard({ state }: ArgoSyncCardProps) {
             className={`flex h-9 w-9 items-center justify-center rounded-full border ${
               isSyncing
                 ? "border-blue-500/60 bg-blue-500/15 text-blue-300"
-                : isSynced
-                  ? "border-emerald-500/60 bg-emerald-500/15 text-emerald-300"
-                  : "border-zinc-700 bg-zinc-800/40 text-zinc-500"
+                : "border-emerald-500/60 bg-emerald-500/15 text-emerald-300"
             }`}
           >
             {isSyncing ? (
               <RefreshCw className="h-4 w-4 animate-spin" />
-            ) : isSynced ? (
-              <Check className="h-4 w-4" />
             ) : (
-              <ArrowRight className="h-4 w-4" />
+              <Check className="h-4 w-4" />
             )}
           </motion.div>
           <div
             className={`mt-1.5 text-[10px] uppercase tracking-widest ${
-              isSyncing
-                ? "text-blue-400"
-                : isSynced
-                  ? "text-emerald-400"
-                  : "text-zinc-500"
+              isSyncing ? "text-blue-400" : "text-emerald-400"
             }`}
           >
-            {isSyncing ? "Applying" : isSynced ? "Synced" : "Idle"}
+            {isSyncing ? "Applying" : "Synced"}
           </div>
         </div>
 
-        {/* Cluster side */}
+        {/* Cluster */}
         <div className="rounded-lg border border-zinc-800 bg-zinc-950/60 p-3">
           <div className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-zinc-500">
             <Server className="h-3 w-3" />
-            Kubernetes Cluster
+            kubernetes cluster
           </div>
           <div className="mt-1.5 font-mono text-sm text-zinc-200">
             payments-api
           </div>
           <div className="mt-1 flex items-center gap-1.5 font-mono text-xs text-zinc-400">
             <span className="text-zinc-500">ns/</span>
-            <span className="text-zinc-300">production</span>
+            <span className="text-zinc-300">payment-prod</span>
           </div>
           <div className="mt-1.5 font-mono text-[11px] text-zinc-500">
             image:{" "}
-            <span className="text-zinc-300">
+            <span className={isReverted ? "text-emerald-300" : "text-amber-300"}>
               {isReverted ? "payments:v2.3" : "payments:v2.4"}
             </span>
           </div>
+          <a
+            href={`https://github.com/${state.repo}/commit/${state.revision}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-1.5 inline-flex items-center gap-1 font-mono text-[10px] text-zinc-500 hover:text-zinc-300"
+          >
+            <ExternalLink className="h-2.5 w-2.5" />
+            view commit
+          </a>
         </div>
       </div>
 
-      {/* Manifest summary */}
       <div className="mt-4 rounded-lg border border-zinc-800 bg-zinc-950/80 p-3">
         <div className="mb-1.5 text-[10px] uppercase tracking-widest text-zinc-500">
-          manifest diff
+          argocd app diff (manifest)
         </div>
         <pre className="overflow-x-auto font-mono text-[11px] leading-relaxed text-zinc-400">
 {`- image: payments:v2.3   # stable

@@ -1,61 +1,76 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useState } from "react";
 import {
   Area,
   AreaChart,
   CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
+  ResponsiveContainer,
+  Tooltip,
 } from "recharts";
-import { Activity, Gauge, AlertOctagon } from "lucide-react";
-import {
-  METRICS,
-  isSloViolated,
-  type DemoState,
-} from "@/lib/demo-state";
+import { Activity, Gauge, AlertOctagon, Database } from "lucide-react";
+import type { ClusterState } from "@/hooks/use-cluster-state";
 
-interface PrometheusMetricsCardProps {
-  state: DemoState;
-  /** Historical time-series of error-rate samples (0..100). */
-  errorSeries: { t: string; v: number }[];
-  /** Historical time-series of p99 latency samples (ms). */
-  latencySeries: { t: string; v: number }[];
+interface Props {
+  metrics: ClusterState["metrics"];
+  slo: ClusterState["slo"];
 }
 
-/**
- * Prometheus metrics panel. Two stacked line charts:
- *   1. HTTP Error Rate (%)  — emerald baseline, red when SLO violated
- *   2. P99 Latency (ms)     — emerald baseline, amber when elevated
- */
-export function PrometheusMetricsCard({
-  state,
-  errorSeries,
-  latencySeries,
-}: PrometheusMetricsCardProps) {
-  const slo = isSloViolated(state);
-  const current = METRICS[state];
+interface Sample { t: string; v: number; }
 
-  const errorColor = slo ? "#f87171" : "#34d399"; // red-400 / emerald-400
-  const latencyColor =
-    current.p99Latency > 500 ? "#fbbf24" : "#34d399"; // amber-400 / emerald-400
+function usePromSeries(query: string) {
+  const [series, setSeries] = useState<Sample[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    async function tick() {
+      try {
+        const res = await fetch(
+          `/api/prometheus?query=${encodeURIComponent(query)}&range=1`,
+          { cache: "no-store" },
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        const values = data?.data?.result?.[0]?.values ?? [];
+        const samples: Sample[] = values.map(([ts, val]: [number, string]) => ({
+          t: new Date(ts * 1000).toLocaleTimeString("en-US", { hour12: false }),
+          v: Number(val),
+        }));
+        if (!cancelled) setSeries(samples);
+      } catch {
+        /* swallow — chart just won't update this tick */
+      }
+    }
+    tick();
+    const id = setInterval(tick, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [query]);
+  return series;
+}
 
-  // Stable max so the chart axis doesn't jump around when the spike arrives.
-  const latencyMax = useMemo(() => 2200, []);
-  const errorMax = useMemo(() => 18, []);
+export function PrometheusMetricsCard({ metrics, slo }: Props) {
+  const errSeries = usePromSeries(
+    'rate(http_requests_total{service="payments-api",track="canary",code=~"5.."}[5m]) / rate(http_requests_total{service="payments-api",track="canary"}[5m]) * 100',
+  );
+  const latSeries = usePromSeries(
+    'histogram_quantile(0.99, rate(http_request_duration_seconds_bucket{service="payments-api",track="canary"}[5m])) * 1000',
+  );
+
+  const violated = slo.status === "violated";
+  const errColor = violated ? "#f87171" : "#34d399";
+  const latColor = metrics.canaryP99 > 500 ? "#fbbf24" : "#34d399";
 
   return (
     <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-5 backdrop-blur">
-      {/* Header */}
       <div className="flex items-center justify-between gap-3 border-b border-zinc-800 pb-3">
         <div className="flex items-center gap-2.5">
           <div
             className={`flex h-8 w-8 items-center justify-center rounded-md ${
-              slo
+              violated
                 ? "bg-red-500/10 text-red-400"
                 : "bg-emerald-500/10 text-emerald-400"
             }`}
@@ -67,68 +82,49 @@ export function PrometheusMetricsCard({
               Prometheus · SLO Metrics
             </h2>
             <p className="text-[11px] uppercase tracking-widest text-zinc-500">
-              scrape: payments-api / 15s
+              scrape: payments-api / 15s · prometheus.internal.acme.io
             </p>
           </div>
         </div>
         <span
           className={`rounded-md border px-2 py-0.5 text-[11px] font-medium tracking-wide ${
-            slo
+            violated
               ? "border-red-500/40 bg-red-500/10 text-red-300"
               : "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
           }`}
         >
-          {slo ? "SLO VIOLATED" : "SLO HEALTHY"}
+          {violated ? "SLO VIOLATED" : "SLO HEALTHY"}
         </span>
       </div>
 
-      {/* Error rate chart */}
+      {/* Error rate */}
       <div className="mt-4">
         <div className="mb-1.5 flex items-center justify-between text-[11px]">
           <div className="flex items-center gap-1.5 text-zinc-400">
             <AlertOctagon className="h-3 w-3" />
-            <span className="uppercase tracking-widest text-zinc-500">
-              http_error_rate
-            </span>
+            <code className="font-mono text-zinc-500">http_error_rate</code>
+            <span className="text-zinc-600">(canary)</span>
           </div>
           <span
             className={`font-mono font-semibold ${
-              slo ? "text-red-400" : "text-emerald-400"
+              violated ? "text-red-400" : "text-emerald-400"
             }`}
           >
-            {current.errorRate.toFixed(1)}%
+            {metrics.canaryErrorRate.toFixed(1)}%
           </span>
         </div>
         <div className="h-24 w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart
-              data={errorSeries}
-              margin={{ top: 4, right: 4, left: -28, bottom: 0 }}
-            >
+            <AreaChart data={errSeries} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
               <defs>
                 <linearGradient id="errGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={errorColor} stopOpacity={0.5} />
-                  <stop offset="100%" stopColor={errorColor} stopOpacity={0.02} />
+                  <stop offset="0%" stopColor={errColor} stopOpacity={0.5} />
+                  <stop offset="100%" stopColor={errColor} stopOpacity={0.02} />
                 </linearGradient>
               </defs>
-              <CartesianGrid
-                stroke="#27272a"
-                strokeDasharray="2 4"
-                vertical={false}
-              />
-              <XAxis
-                dataKey="t"
-                tick={{ fontSize: 9, fill: "#52525b", fontFamily: "var(--font-geist-mono)" }}
-                tickLine={false}
-                axisLine={{ stroke: "#27272a" }}
-                interval="preserveStartEnd"
-              />
-              <YAxis
-                domain={[0, errorMax]}
-                tick={{ fontSize: 9, fill: "#52525b", fontFamily: "var(--font-geist-mono)" }}
-                tickLine={false}
-                axisLine={false}
-              />
+              <CartesianGrid stroke="#27272a" strokeDasharray="2 4" vertical={false} />
+              <XAxis dataKey="t" tick={{ fontSize: 9, fill: "#52525b" }} tickLine={false} axisLine={{ stroke: "#27272a" }} interval="preserveStartEnd" />
+              <YAxis domain={[0, 18]} tick={{ fontSize: 9, fill: "#52525b" }} tickLine={false} axisLine={false} />
               <Tooltip
                 cursor={{ stroke: "#52525b", strokeDasharray: "3 3" }}
                 contentStyle={{
@@ -136,67 +132,44 @@ export function PrometheusMetricsCard({
                   border: "1px solid #27272a",
                   borderRadius: 6,
                   fontSize: 11,
-                  fontFamily: "var(--font-geist-mono)",
                   color: "#e4e4e7",
                 }}
-                labelStyle={{ color: "#a1a1aa" }}
                 formatter={(v: number) => [`${v.toFixed(2)}%`, "error_rate"]}
               />
-              <Area
-                type="monotone"
-                dataKey="v"
-                stroke={errorColor}
-                strokeWidth={1.6}
-                fill="url(#errGrad)"
-                isAnimationActive={false}
-                dot={false}
-              />
+              <Area type="monotone" dataKey="v" stroke={errColor} strokeWidth={1.6} fill="url(#errGrad)" isAnimationActive={false} dot={false} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      {/* Latency chart */}
+      {/* Latency */}
       <div className="mt-4">
         <div className="mb-1.5 flex items-center justify-between text-[11px]">
           <div className="flex items-center gap-1.5 text-zinc-400">
             <Gauge className="h-3 w-3" />
-            <span className="uppercase tracking-widest text-zinc-500">
-              http_request_duration_p99
-            </span>
+            <code className="font-mono text-zinc-500">http_request_duration_p99</code>
+            <span className="text-zinc-600">(canary, ms)</span>
           </div>
           <span
             className={`font-mono font-semibold ${
-              current.p99Latency > 500 ? "text-amber-400" : "text-emerald-400"
+              metrics.canaryP99 > 500 ? "text-amber-400" : "text-emerald-400"
             }`}
           >
-            {Math.round(current.p99Latency)} ms
+            {Math.round(metrics.canaryP99)} ms
           </span>
         </div>
         <div className="h-24 w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={latencySeries}
-              margin={{ top: 4, right: 4, left: -28, bottom: 0 }}
-            >
-              <CartesianGrid
-                stroke="#27272a"
-                strokeDasharray="2 4"
-                vertical={false}
-              />
-              <XAxis
-                dataKey="t"
-                tick={{ fontSize: 9, fill: "#52525b", fontFamily: "var(--font-geist-mono)" }}
-                tickLine={false}
-                axisLine={{ stroke: "#27272a" }}
-                interval="preserveStartEnd"
-              />
-              <YAxis
-                domain={[0, latencyMax]}
-                tick={{ fontSize: 9, fill: "#52525b", fontFamily: "var(--font-geist-mono)" }}
-                tickLine={false}
-                axisLine={false}
-              />
+            <AreaChart data={latSeries} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
+              <defs>
+                <linearGradient id="latGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={latColor} stopOpacity={0.5} />
+                  <stop offset="100%" stopColor={latColor} stopOpacity={0.02} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid stroke="#27272a" strokeDasharray="2 4" vertical={false} />
+              <XAxis dataKey="t" tick={{ fontSize: 9, fill: "#52525b" }} tickLine={false} axisLine={{ stroke: "#27272a" }} interval="preserveStartEnd" />
+              <YAxis domain={[0, 2200]} tick={{ fontSize: 9, fill: "#52525b" }} tickLine={false} axisLine={false} />
               <Tooltip
                 cursor={{ stroke: "#52525b", strokeDasharray: "3 3" }}
                 contentStyle={{
@@ -204,34 +177,34 @@ export function PrometheusMetricsCard({
                   border: "1px solid #27272a",
                   borderRadius: 6,
                   fontSize: 11,
-                  fontFamily: "var(--font-geist-mono)",
                   color: "#e4e4e7",
                 }}
-                labelStyle={{ color: "#a1a1aa" }}
                 formatter={(v: number) => [`${Math.round(v)} ms`, "p99"]}
               />
-              <Line
-                type="monotone"
-                dataKey="v"
-                stroke={latencyColor}
-                strokeWidth={1.6}
-                isAnimationActive={false}
-                dot={false}
-              />
-            </LineChart>
+              <Area type="monotone" dataKey="v" stroke={latColor} strokeWidth={1.6} fill="url(#latGrad)" isAnimationActive={false} dot={false} />
+            </AreaChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      {/* SLO thresholds */}
-      <div className="mt-4 grid grid-cols-2 gap-2 text-[10px] uppercase tracking-widest text-zinc-500">
+      {/* PromQL query bar — shows the actual query being executed */}
+      <div className="mt-4 rounded-lg border border-zinc-800 bg-zinc-950/80 p-2.5">
+        <div className="mb-1 flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-zinc-500">
+          <Database className="h-3 w-3" />
+          promql · live query
+        </div>
+        <pre className="overflow-x-auto font-mono text-[10px] leading-relaxed text-zinc-400">
+{`rate(http_requests_total{service="payments-api",track="canary",code=~"5.."}[5m])
+/ rate(http_requests_total{service="payments-api",track="canary"}[5m]) * 100`}
+        </pre>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2 text-[10px] uppercase tracking-widest text-zinc-500">
         <div className="rounded-md border border-zinc-800 bg-zinc-950/60 px-2 py-1.5">
-          error budget{" "}
-          <span className="font-mono text-zinc-300">≤ 1.0%</span>
+          error budget <span className="font-mono text-zinc-300">≤ 1.0%</span>
         </div>
         <div className="rounded-md border border-zinc-800 bg-zinc-950/60 px-2 py-1.5">
-          p99 target{" "}
-          <span className="font-mono text-zinc-300">≤ 500 ms</span>
+          p99 target <span className="font-mono text-zinc-300">≤ 500 ms</span>
         </div>
       </div>
     </div>
