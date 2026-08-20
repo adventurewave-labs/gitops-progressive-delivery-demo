@@ -207,7 +207,7 @@ export default function Home() {
   const busy = isRunning && state !== "rollback";
 
   return (
-    <main className="min-h-screen bg-zinc-950 bg-grid text-zinc-100">
+    <main className="min-h-screen overflow-x-hidden bg-zinc-950 bg-grid text-zinc-100">
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
         {/* ---- Header ---- */}
         <header className="mb-6 flex flex-col gap-4 lg:mb-8 lg:flex-row lg:items-center lg:justify-between">
@@ -337,7 +337,7 @@ function StateRail({ state, tick }: { state: DemoState; tick: number }) {
   const currentIdx = allStates.indexOf(state);
 
   return (
-    <div className="mb-4 overflow-x-auto">
+    <div className="mb-4 w-full max-w-full overflow-x-auto">
       <div className="flex min-w-max items-center gap-1 rounded-lg border border-zinc-800 bg-zinc-900/60 p-1">
         {allStates.map((s, i) => {
           const isCurrent = s === state;

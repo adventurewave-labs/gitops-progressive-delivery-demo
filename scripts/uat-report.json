@@ -1,0 +1,162 @@
+{
+  "total": 31,
+  "passed": 31,
+  "failed": 0,
+  "results": [
+    {
+      "name": "server-up",
+      "status": "PASS",
+      "detail": "HTTP 200 from http://localhost:3000"
+    },
+    {
+      "name": "title-correct",
+      "status": "PASS",
+      "detail": "Page title: GitOps Progressive Delivery & Incident Response Demo"
+    },
+    {
+      "name": "all-4-cards-present",
+      "status": "PASS",
+      "detail": "Argo CD + Argo Rollouts + Prometheus + K8sGPT all visible"
+    },
+    {
+      "name": "start-rollout-button",
+      "status": "PASS",
+      "detail": "Start Rollout v2.4 button present"
+    },
+    {
+      "name": "initial-state-idle",
+      "status": "PASS",
+      "detail": "Pipeline starts in IDLE state"
+    },
+    {
+      "name": "initial-traffic-100-0",
+      "status": "PASS",
+      "detail": "Initial traffic 100% stable / 0% canary"
+    },
+    {
+      "name": "initial-slo-healthy",
+      "status": "PASS",
+      "detail": "Initial SLO status: HEALTHY"
+    },
+    {
+      "name": "terminal-idle-prompt",
+      "status": "PASS",
+      "detail": "K8sGPT terminal shows 'awaiting trigger' idle prompt"
+    },
+    {
+      "name": "transitions-to-syncing",
+      "status": "PASS",
+      "detail": "After click, state = SYNCING"
+    },
+    {
+      "name": "syncing-arrow-pulsing",
+      "status": "PASS",
+      "detail": "Argo CD arrow shows 'Applying' state"
+    },
+    {
+      "name": "transitions-to-canary20",
+      "status": "PASS",
+      "detail": "After ~3s, state = CANARY 20%"
+    },
+    {
+      "name": "canary20-traffic-split",
+      "status": "PASS",
+      "detail": "Traffic split = 80/20"
+    },
+    {
+      "name": "canary20-argo-synced",
+      "status": "PASS",
+      "detail": "Argo CD shows Synced state"
+    },
+    {
+      "name": "transitions-to-canary50",
+      "status": "PASS",
+      "detail": "After ~4s, state = CANARY 50%"
+    },
+    {
+      "name": "canary50-traffic-split",
+      "status": "PASS",
+      "detail": "Traffic split = 50/50"
+    },
+    {
+      "name": "transitions-to-anomaly",
+      "status": "PASS",
+      "detail": "After ~3s, state = ANOMALY DETECTED"
+    },
+    {
+      "name": "anomaly-slo-violated",
+      "status": "PASS",
+      "detail": "Prometheus shows SLO VIOLATED"
+    },
+    {
+      "name": "anomaly-traffic-paused",
+      "status": "PASS",
+      "detail": "Traffic remains 50/50 (paused)"
+    },
+    {
+      "name": "transitions-to-analyzing",
+      "status": "PASS",
+      "detail": "After ~2s, state = AI ANALYZING"
+    },
+    {
+      "name": "k8sgpt-streaming",
+      "status": "PASS",
+      "detail": "K8sGPT terminal streaming (7 lines so far)"
+    },
+    {
+      "name": "k8sgpt-trigger-line",
+      "status": "PASS",
+      "detail": "'K8sGPT Analyzer triggered by Prometheus SLO violation...' visible"
+    },
+    {
+      "name": "transitions-to-rollback",
+      "status": "PASS",
+      "detail": "After ~5s, state = ROLLED BACK"
+    },
+    {
+      "name": "rollback-traffic-restored",
+      "status": "PASS",
+      "detail": "Traffic restored to 100/0"
+    },
+    {
+      "name": "rollback-slo-restored",
+      "status": "PASS",
+      "detail": "SLO HEALTHY again after rollback"
+    },
+    {
+      "name": "k8sgpt-all-9-lines",
+      "status": "PASS",
+      "detail": "All 9 K8sGPT stream lines rendered"
+    },
+    {
+      "name": "k8sgpt-final-line",
+      "status": "PASS",
+      "detail": "'Executing automated rollback via Argo Rollouts...' visible"
+    },
+    {
+      "name": "reset-button-visible",
+      "status": "PASS",
+      "detail": "Reset Demo button appears in header"
+    },
+    {
+      "name": "reset-returns-to-idle",
+      "status": "PASS",
+      "detail": "After Reset, state returns to IDLE"
+    },
+    {
+      "name": "reset-clears-terminal",
+      "status": "PASS",
+      "detail": "Terminal cleared on reset (0 lines)"
+    },
+    {
+      "name": "reset-restores-start-button",
+      "status": "PASS",
+      "detail": "Start Rollout button restored after reset"
+    },
+    {
+      "name": "mobile-no-overflow",
+      "status": "PASS",
+      "detail": "375px viewport: no horizontal overflow"
+    }
+  ]
+}

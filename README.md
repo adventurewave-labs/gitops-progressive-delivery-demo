@@ -5,10 +5,15 @@
 
 ![CI](https://github.com/adventurewave-labs/gitops-progressive-delivery-demo/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![UAT](https://img.shields.io/badge/UAT-31%2F31-brightgreen)
 ![Next.js](https://img.shields.io/badge/Next.js-16-black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
 ![Tailwind](https://img.shields.io/badge/Tailwind-4-38bdf8)
 ![Docker](https://img.shields.io/badge/Docker-standalone-2496ed)
+
+![demo gif](./public/demo.gif)
+
+> A ~24-second walkthrough: idle → syncing → canary 20% → canary 50% → anomaly → AI analyzing → rollback → reset.
 
 ---
 
@@ -105,6 +110,12 @@ gitops-progressive-delivery-demo/
 │   │   └── demo-state.ts             # State machine constants + types
 │   ├── hooks/
 │   └── components/ui/                 # shadcn/ui primitives
+├── public/
+│   └── demo.gif                       # 24s demo recording embedded in README
+├── scripts/
+│   ├── uat-test.sh                    # UAT suite (31 checks, drives headless browser)
+│   ├── record-demo.sh                 # Re-records public/demo.gif from a fresh run
+│   └── uat-report.json                # Latest UAT results (regenerated on each run)
 ├── Dockerfile                        # Multi-stage, node:20-alpine, standalone
 ├── docker-compose.yml
 ├── next.config.js                    # output: 'standalone'
@@ -117,6 +128,7 @@ gitops-progressive-delivery-demo/
 ├── .gitignore
 ├── LICENSE
 ├── CONTRIBUTING.md
+├── UAT_TESTING.md                    # UAT test matrix + bug-fix history
 └── README.md
 ```
 
@@ -160,6 +172,33 @@ Every push / PR triggers `.github/workflows/ci.yml` which:
 4. Boots the container and smoke-tests `HTTP 200` on `/`
 
 Status badge: ![CI](https://github.com/adventurewave-labs/gitops-progressive-delivery-demo/actions/workflows/ci.yml/badge.svg)
+
+---
+
+## UAT
+
+`scripts/uat-test.sh` runs a 31-check end-to-end acceptance suite that
+drives the running app via [agent-browser](https://github.com/vercel-labs/agent-browser):
+
+- Every pipeline state transition (idle → syncing → canary20 → canary50 → anomaly → analyzing → rollback)
+- Traffic split assertions at each state (100/0 → 80/20 → 50/50 → 100/0)
+- SLO badge flips (HEALTHY → VIOLATED → HEALTHY)
+- All 9 K8sGPT stream lines render
+- Reset Demo returns to idle cleanly
+- Mobile viewport (375px) — no horizontal overflow
+
+Result: ![UAT](https://img.shields.io/badge/UAT-31%2F31-brightgreen)
+
+See [`UAT_TESTING.md`](./UAT_TESTING.md) for the full test matrix and
+the three real bugs this suite caught (terminal crash, stream race,
+mobile overflow).
+
+To re-record the demo GIF above:
+
+```bash
+bash scripts/record-demo.sh
+# writes public/demo.gif (and scripts/demo.webm as the source)
+```
 
 ---
 
