@@ -1,0 +1,52 @@
+---
+name: Bug report
+about: Something looks broken or behaves unexpectedly
+title: "[bug] "
+labels: bug
+assignees: ''
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the unexpected behaviour.
+      placeholder: "I clicked Start Rollout, then..."
+    validations:
+      required: true
+  - type: dropdown
+    id: state
+    attributes:
+      label: Which pipeline state?
+      options:
+        - idle
+        - syncing
+        - canary20
+        - canary50
+        - anomaly
+        - analyzing
+        - rollback
+        - all / not state-specific
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Exact click path to trigger the bug.
+      placeholder: "1. Open /  2. Click Start Rollout  3. ..."
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console / dev-server logs
+      description: Paste any errors from the browser console or `dev.log`.
+      render: shell
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: Browser, OS, Node version, Docker version.
+      placeholder: "Chrome 130 / macOS 14 / Node 18.20.4 / Docker 26.0"
+    validations:
+      required: true

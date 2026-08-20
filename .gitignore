@@ -1,54 +1,58 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
 
-# dependencies
-node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
+# Next.js
+.next/
+out/
+build/
+dist/
 
-# testing
-/coverage
+# Production
+*.tsbuildinfo
 
-# next.js
-/.next/
-/out/
+# Environment
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
-# production
-/build
-
-# misc
-.DS_Store
-*.pem
-
-# debug
+# Logs
+*.log
+dev.log
+server.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-.pnpm-debug.log*
+pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
 
-# vercel
-.vercel
+# Prisma
+prisma/generated/
 
+# Misc
+.cache/
+coverage/
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts
-local-*
-.claude
-.z-ai-config
-*.log
+# Sandbox artifacts (don't push screenshots / dev logs)
+download/
+.zscripts/
+worklog.md
+agent-ctx/
+
+# Platform scaffolding that is not part of this demo project
+skills/
+examples/
+tests/
+prisma/
+Caddyfile
 dev.log
-dev.out.log
-test
-prompt
-
 server.log
-# Skills directory
-/skills/

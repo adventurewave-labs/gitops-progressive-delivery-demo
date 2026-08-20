@@ -1,0 +1,25 @@
+---
+name: Feature request
+about: Suggest a new feature or improvement
+title: "[feat] "
+labels: enhancement
+assignees: ''
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      placeholder: "I want to see X happen because..."
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: What would the ideal behaviour look like?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
