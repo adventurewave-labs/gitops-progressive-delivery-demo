@@ -105,7 +105,7 @@ gitops-progressive-delivery-demo/
 │   │   └── demo-state.ts             # State machine constants + types
 │   ├── hooks/
 │   └── components/ui/                 # shadcn/ui primitives
-├── Dockerfile                        # Multi-stage, node:18-alpine, standalone
+├── Dockerfile                        # Multi-stage, node:20-alpine, standalone
 ├── docker-compose.yml
 ├── next.config.js                    # output: 'standalone'
 ├── package.json
@@ -132,7 +132,7 @@ gitops-progressive-delivery-demo/
 | Charts       | recharts                                 |
 | Animations   | framer-motion                            |
 | Icons        | lucide-react                             |
-| Container    | Docker (node:18-alpine, standalone)      |
+| Container    | Docker (node:20-alpine, standalone)      |
 | CI           | GitHub Actions                           |
 
 ---

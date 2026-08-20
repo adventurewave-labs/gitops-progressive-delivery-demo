@@ -3,7 +3,8 @@
 # ============================================================
 # Stage 1 — deps
 # ============================================================
-FROM node:18-alpine AS deps
+# Next.js 16 requires Node.js >= 20.9.0.
+FROM node:20-alpine AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
@@ -22,7 +23,7 @@ RUN if [ -f bun.lock ]; then bun install --frozen-lockfile; \
 # ============================================================
 # Stage 2 — builder
 # ============================================================
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 WORKDIR /app
 
 RUN npm install -g bun
@@ -42,7 +43,7 @@ RUN bun run build
 # ============================================================
 # Stage 3 — runner (final image)
 # ============================================================
-FROM node:18-alpine AS runner
+FROM node:20-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
