@@ -12,9 +12,10 @@ RUN npm install -g bun
 
 # Copy lockfile + manifests first to maximise layer caching.
 COPY package.json bun.lock* package-lock.json* ./
-COPY prisma ./prisma
 
 # Install with Bun (falls back to npm if no bun.lock present).
+# Note: this demo doesn't use Prisma, so we intentionally don't COPY the
+# prisma/ directory. If you re-add Prisma, copy it before this step.
 RUN if [ -f bun.lock ]; then bun install --frozen-lockfile; \
     else npm ci; fi
 
