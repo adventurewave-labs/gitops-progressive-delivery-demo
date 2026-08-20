@@ -1,0 +1,68 @@
+// Dev container config for GitHub Codespaces + VS Code Remote - Containers.
+//
+// One-click "Open in Codespaces" experience for this repo:
+//   1. Base image: Node 20 (matches .nvmrc + Dockerfile)
+//   2. Bun installed via feature (matches the project's bun.lock)
+//   3. Port 3000 auto-forwarded + opened in browser
+//   4. `postCreateCommand` installs deps so `bun run dev` works immediately
+//   5. Useful VS Code extensions for Next.js / Tailwind / TS dev
+//
+// To launch: click the green "Code" button on the repo page → "Codespaces"
+// → "Create codespace on main". After ~2 minutes the dev server will be
+// running and the preview will pop up automatically.
+{
+  "name": "gitops-progressive-delivery-demo",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
+
+  "features": {
+    // Install Bun for fast installs + matches the project's bun.lock
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20",
+      "nodeGypDependencies": true
+    },
+    "ghcr.io/shynd/devcontainer-features/bun:1": {}
+  },
+
+  "forwardPorts": [3000],
+
+  "portsAttributes": {
+    "3000": {
+      "label": "Next.js dev server",
+      "onAutoForward": "openBrowser",
+      "visibility": "public"
+    }
+  },
+
+  "postCreateCommand": "bun install",
+
+  // Don't auto-start the dev server — Codespaces will forward port 3000
+  // when the user runs `bun run dev` themselves. This avoids burning
+  // compute on codespace creation.
+  "waitFor": "postCreateCommand",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "bradlc.vscode-tailwindcss",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "ms-vscode.vscode-typescript-next",
+        "unifiedjs.vscode-mdx",
+        "yoavbls.pretty-ts-errors"
+      ],
+      "settings": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "typescript.tsdk": "node_modules/typescript/lib",
+        "tailwindCSS.includeLanguages": {
+          "typescriptreact": "html",
+          "typescript": "html"
+        }
+      }
+    }
+  },
+
+  "remoteEnv": {
+    "NEXT_TELEMETRY_DISABLED": "1"
+  }
+}

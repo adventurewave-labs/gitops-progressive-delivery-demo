@@ -11,9 +11,56 @@
 ![Tailwind](https://img.shields.io/badge/Tailwind-4-38bdf8)
 ![Docker](https://img.shields.io/badge/Docker-standalone-2496ed)
 
+[![Open in Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/adventurewave-labs/gitops-progressive-delivery-demo?quick_start=1)
+
 ![demo gif](./public/demo.gif)
 
 > A ~24-second walkthrough: idle → syncing → canary 20% → canary 50% → anomaly → AI analyzing → rollback → reset.
+
+> ℹ️ **This is a real, working Next.js app — but the GitOps pipeline it depicts is fully simulated.**
+> No real cluster, no real Argo CD, no real Prometheus, no real K8sPT. See
+> [`CLARIFICATION.md`](./CLARIFICATION.md) for the full breakdown of what's real vs simulated,
+> and a roadmap for graduating to live cluster mode.
+
+---
+
+## Quick start (3 ways)
+
+### 1. GitHub Codespaces — zero install, click to run
+
+[![Open in Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/adventurewave-labs/gitops-progressive-delivery-demo?quick_start=1)
+
+Click the badge above. Codespaces will spin up a cloud dev environment with
+Bun + Node 20 pre-installed (per `.devcontainer/devcontainer.json`), run
+`bun install`, and forward port 3000. The preview pops up in your browser
+in ~2 minutes — no local setup required.
+
+### 2. Local dev
+
+```bash
+git clone https://github.com/adventurewave-labs/gitops-progressive-delivery-demo.git
+cd gitops-progressive-delivery-demo
+
+bun install            # or: npm install
+bun run dev            # or: npm run dev
+
+# Open http://localhost:3000 and click "Start Rollout (v2.4)"
+```
+
+### 3. Docker
+
+```bash
+docker build -t gitops-progressive-delivery-demo .
+docker run --rm -p 3000:3000 gitops-progressive-delivery-demo
+# -> http://localhost:3000
+```
+
+Or with Docker Compose:
+
+```bash
+docker compose up --build
+# -> http://localhost:3000
+```
 
 ---
 
@@ -54,37 +101,6 @@ No real cluster is required — every behaviour is driven by a central state mac
 | 4 | `anomaly`    | 2s       | Prometheus SLO burns: error 15%, p99 2000ms. |
 | 5 | `analyzing`  | 8s       | Rollouts pauses. K8sGPT streams AI diagnosis (OOMKilled, memory leak, etc.). |
 | 6 | `rollback`   | —        | Traffic reverts to 100% stable. Metrics return to baseline. |
-
----
-
-## Quick start
-
-### Run locally (dev)
-
-```bash
-git clone https://github.com/adventurewave-labs/gitops-progressive-delivery-demo.git
-cd gitops-progressive-delivery-demo
-
-bun install            # or: npm install
-bun run dev            # or: npm run dev
-
-# Open http://localhost:3000 and click "Start Rollout (v2.4)"
-```
-
-### Run with Docker
-
-```bash
-docker build -t gitops-progressive-delivery-demo .
-docker run --rm -p 3000:3000 gitops-progressive-delivery-demo
-# -> http://localhost:3000
-```
-
-### Or with Docker Compose
-
-```bash
-docker compose up --build
-# -> http://localhost:3000
-```
 
 ---
 
