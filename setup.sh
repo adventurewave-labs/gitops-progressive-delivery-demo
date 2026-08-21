@@ -13,6 +13,7 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NS="payment-prod"
 CLUSTER_NAME="gitops-demo"
+K3D_KUBECONFIG="${HOME}/.k3d/kubeconfig-${CLUSTER_NAME}.yaml"
 
 echo "========================================"
 echo " GitOps Progressive Delivery Demo Setup"
@@ -23,7 +24,7 @@ echo ""
 # 0. Bun (needed for dashboard build and dev server)
 # -----------------------------------------------------------------------------
 if command -v bun &>/dev/null; then
-    echo "[✓] Bun already installed ($(bun --version))"
+    echo "[0/8] Bun already installed ($(bun --version))"
 else
     echo "[0/8] Installing Bun..."
     curl -fsSL https://bun.com/install | bash
@@ -41,7 +42,7 @@ echo ""
 # 1. k3d + k3s cluster (runs k3s inside Docker — works in Codespaces)
 # -----------------------------------------------------------------------------
 if k3d cluster list 2>/dev/null | grep -q "${CLUSTER_NAME}"; then
-    echo "[✓] k3d cluster '${CLUSTER_NAME}' already running"
+    echo "[1/8] k3d cluster '${CLUSTER_NAME}' already running"
 else
     # Install k3d
     if ! command -v k3d &>/dev/null; then
@@ -49,7 +50,7 @@ else
         curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
         echo "  k3d installed: $(k3d --version)"
     else
-        echo "[1/8] k3d already installed ($(k3d --version))"
+        echo "[1/8] k3d already installed"
     fi
 
     # Install kubectl if missing
@@ -59,29 +60,31 @@ else
         sudo chmod +x /usr/local/bin/kubectl
     fi
 
+    # Delete any previous failed cluster
+    k3d cluster delete "${CLUSTER_NAME}" 2>/dev/null || true
+
     echo "  Creating k3d cluster '${CLUSTER_NAME}'..."
+    # k3d port format: hostPort:nodePort@nodeFilter
+    # We map to NodePorts used by our Helm values
+    # --no-lb + @agent:0 uses direct mapping (no proxy needed)
     k3d cluster create "${CLUSTER_NAME}" \
         --agents 1 \
-        -p "30800:30800@loadbalancer" \
-        -p "30900:30900@loadbalancer" \
-        -p "30910:30910@loadbalancer" \
+        --no-lb \
+        -p "30800:30800@agent:0" \
+        -p "30900:30900@agent:0" \
+        -p "30910:30910@agent:0" \
         --k3s-arg "--disable=traefik@server:0" \
         --k3s-arg "--disable=metrics-server@server:0" \
         --wait \
-        --timeout 120s
-
-    # k3d automatically merges kubeconfig — point KUBECONFIG at it
-    export KUBECONFIG="${HOME}/.k3d/kubeconfig-${CLUSTER_NAME}.yaml"
+        --timeout 180s
 fi
 
-# Ensure KUBECONFIG is set for all subsequent kubectl/helm commands
-if [ -z "${KUBECONFIG:-}" ]; then
-    export KUBECONFIG="${HOME}/.k3d/kubeconfig-${CLUSTER_NAME}.yaml"
-fi
+# Ensure KUBECONFIG points to k3d's kubeconfig
+export KUBECONFIG="${K3D_KUBECONFIG}"
 
 echo "  Waiting for cluster nodes to be Ready..."
 for i in $(seq 1 60); do
-    if kubectl get nodes -o jsonpath='{.items[0].status.conditions[?(@.type=="Ready")].status}' 2>/dev/null | grep -q "True"; then
+    if kubectl get nodes -o jsonpath='{.items[0].status.conditions[?(@.type=="Ready").status}' 2>/dev/null | grep -q "True"; then
         echo "  Cluster ready after $((i * 2))s"
         break
     fi
@@ -99,7 +102,7 @@ echo "  Node: $(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')"
 # 2. Helm
 # -----------------------------------------------------------------------------
 if command -v helm &>/dev/null; then
-    echo "[✓] Helm already installed ($(helm version --short 2>/dev/null))"
+    echo "[2/8] Helm already installed ($(helm version --short 2>/dev/null))"
 else
     echo "[2/8] Installing Helm..."
     curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
@@ -119,7 +122,7 @@ echo "  CRDs applied"
 # -----------------------------------------------------------------------------
 if kubectl get namespace argocd &>/dev/null 2>&1 && \
    kubectl get deployment argocd-server -n argocd &>/dev/null 2>&1; then
-    echo "[✓] Argo CD already installed"
+    echo "[4/8] Argo CD already installed"
 else
     echo "[4/8] Installing Argo CD..."
     kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
@@ -132,7 +135,7 @@ else
         --wait --timeout 300s
 
     echo "  Waiting for Argo CD to be ready..."
-    kubectl rollout status deployment/argocd-server -n argocd --timeout=120s
+    kubectl rollout status deployment/argocd-server -n argocd --timeout=120s || true
 fi
 
 # -----------------------------------------------------------------------------
@@ -140,7 +143,7 @@ fi
 # -----------------------------------------------------------------------------
 if kubectl get namespace argo-rollouts &>/dev/null 2>&1 && \
    kubectl get deployment argo-rollouts -n argo-rollouts &>/dev/null 2>&1; then
-    echo "[✓] Argo Rollouts already installed"
+    echo "[5/8] Argo Rollouts already installed"
 else
     echo "[5/8] Installing Argo Rollouts controller..."
     kubectl create namespace argo-rollouts --dry-run=client -o yaml | kubectl apply -f -
@@ -153,7 +156,7 @@ else
         --wait --timeout 300s
 
     echo "  Waiting for Rollouts controller to be ready..."
-    kubectl rollout status deployment/argo-rollouts -n argo-rollouts --timeout=120s
+    kubectl rollout status deployment/argo-rollouts -n argo-rollouts --timeout=120s || true
 fi
 
 # -----------------------------------------------------------------------------
@@ -161,7 +164,7 @@ fi
 # -----------------------------------------------------------------------------
 if kubectl get namespace monitoring &>/dev/null 2>&1 && \
    kubectl get statefulset prometheus-prometheus -n monitoring &>/dev/null 2>&1; then
-    echo "[✓] Prometheus stack already installed"
+    echo "[6/8] Prometheus stack already installed"
 else
     echo "[6/8] Installing Prometheus stack..."
     kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
@@ -211,15 +214,15 @@ kubectl apply -f "${REPO_DIR}/manifests-repo/rollout.yaml"
 kubectl apply -f "${REPO_DIR}/manifests-repo/argocd-app.yaml"
 
 echo "  Waiting for Rollout to become Healthy..."
-kubectl rollout status rollout payments-api -n "$NS" --timeout=120s || true
+kubectl argo rollouts status payments-api -n "$NS" --watch --timeout=120s 2>/dev/null || true
 
 echo ""
 echo "========================================"
-echo " ✓ CLUSTER READY"
+echo " CLUSTER READY"
 echo "========================================"
 echo ""
 echo "Components running:"
-echo "  k3d/k3s:         $(kubectl get nodes -o jsonpath='{.items[0].status.conditions[?(@.type=="Ready")].status}')"
+echo "  k3d/k3s:         $(kubectl get nodes -o jsonpath='{.items[0].status.conditions[?(@.type=="Ready").status}')"
 echo "  Argo CD:         http://localhost:30800"
 echo "  Rollouts:        http://localhost:30910"
 echo "  Prometheus:      http://localhost:30900"
@@ -227,7 +230,7 @@ echo ""
 echo "KUBECONFIG=${KUBECONFIG}"
 echo ""
 echo "Next steps:"
-echo "  1. Start the demo controller:  KUBECONFIG=${KUBECONFIG} bash demo-controller/cycle.sh"
-echo "  2. Start the Next.js dashboard: KUBECONFIG=${KUBECONFIG} PROMETHEUS_URL=http://localhost:30900 NODE_TLS_REJECT_UNAUTHORIZED=0 bun run dev"
-echo "  3. Open http://localhost:3000"
+echo "  1. Start the demo controller:  bash dev-real.sh"
+echo "     (or in a separate terminal: KUBECONFIG=${KUBECONFIG} bash demo-controller/cycle.sh)"
+echo "  2. Open http://localhost:3000"
 echo ""
