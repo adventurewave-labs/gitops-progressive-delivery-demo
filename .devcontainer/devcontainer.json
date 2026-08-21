@@ -33,8 +33,8 @@
   },
   "postCreateCommand": "cd ${containerWorkspaceFolder} && curl -fsSL https://bun.sh/install | bash && $HOME/.bun/bin/bun install",
   "remoteEnv": {
-    "PATH": "${containerEnv:HOME}/.bun/bin:${containerEnv:PATH}",
-    "KUBECONFIG": "${containerEnv:HOME}/.k3d/kubeconfig-gitops-demo.yaml"
+    "PATH": "/home/vscode/.bun/bin:${containerEnv:PATH}",
+    "KUBECONFIG": "/home/vscode/.k3d/kubeconfig-gitops-demo.yaml"
   },
   "customizations": {
     "vscode": {

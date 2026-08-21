@@ -7,6 +7,7 @@
 # Everything it touches (pods, metrics, AnalysisRuns) is 100% real.
 # =============================================================================
 set -euo pipefail
+if [ -n "${KUBECONFIG:-}" ] && [ ! -f "${KUBECONFIG}" ]; then unset KUBECONFIG; fi
 
 NS="payment-prod"
 ROLLOUT="payments-api"
@@ -53,7 +54,7 @@ while true; do
     # Wait for canary pods to be created
     echo "  Waiting for canary pods to appear..."
     for i in $(seq 1 30); do
-        CANARY_PODS=$(kubectl get pods -n "$NS" -l "app=payments-api" --no-headers 2>/dev/null | grep -c "canary" || echo "0")
+        CANARY_PODS=$(kubectl get pods -n "$NS" -l app=payments-api -o custom-columns=IMG:.spec.containers[0].image --no-headers 2>/dev/null | grep -c "$CANARY_IMAGE" || echo "0")
         if [ "$CANARY_PODS" -gt 0 ] 2>/dev/null; then
             echo "  Canary pods appeared after ${i}s"
             break

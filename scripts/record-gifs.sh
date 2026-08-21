@@ -2,6 +2,7 @@
 # Records 3 demo GIFs of the REAL running demo.
 # The cluster must be running (setup.sh) and demo-controller cycling.
 set -euo pipefail
+if [ -n "${KUBECONFIG:-}" ] && [ ! -f "${KUBECONFIG}" ]; then unset KUBECONFIG; fi
 BASE_URL="http://localhost:3000"
 OUT_DIR="/home/z/my-project/public/showcase"
 mkdir -p "$OUT_DIR"

@@ -64,3 +64,6 @@ prisma/
 Caddyfile
 dev.log
 server.log
+
+# Playwright install used by scripts/record-gifs.sh
+.playwright/
