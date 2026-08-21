@@ -1,11 +1,6 @@
 {
   "name": "GitOps Progressive Delivery Demo",
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
-  "features": {
-    "docker-in-docker": {
-      "dockerDashComposeVersion": "none"
-    }
-  },
   "forwardPorts": [
     3000,
     30800,
