@@ -43,13 +43,13 @@ if command -v k3s &>/dev/null && kubectl get nodes &>/dev/null 2>&1; then
 else
     echo "[1/8] Installing k3s..."
     curl -sfL https://get.k3s.io | \
-        INSTALL_K3S_EXEC="--disable=traefik --write-kubeconfig-mode=644" \
+        INSTALL_K3S_EXEC="--disable=traefik --write-kubeconfig-mode=644 --snapshotter=native" \
         K3S_KUBECONFIG_MODE="644" sh -
 
     # Codespaces don't run systemd and aren't root — start k3s with sudo
     if ! sudo pgrep -x k3s &>/dev/null; then
         echo "  systemd not available, starting k3s server manually with sudo..."
-        sudo k3s server --disable=traefik --write-kubeconfig-mode=644 &
+        sudo k3s server --disable=traefik --write-kubeconfig-mode=644 --snapshotter=native &
     fi
     export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 
