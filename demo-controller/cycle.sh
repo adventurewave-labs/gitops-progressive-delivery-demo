@@ -14,6 +14,9 @@ STABLE_IMAGE="payments-api:v2.3"
 CANARY_IMAGE="payments-api:v2.4"
 CYCLE_DELAY=${CYCLE_DELAY:-10}  # seconds between cycles
 
+# Ensure k3d kubeconfig
+export KUBECONFIG="${KUBECONFIG:-${HOME}/.k3d/kubeconfig-gitops-demo.yaml}"
+
 echo "========================================"
 echo " Demo Controller — Starting"
 echo " Namespace:  $NS"

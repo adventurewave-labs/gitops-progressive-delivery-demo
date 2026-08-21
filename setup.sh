@@ -3,7 +3,8 @@
 # setup.sh — One-shot bootstrap for the real GitOps progressive delivery demo.
 # Idempotent: safe to run multiple times.
 #
-# Installs: k3s, Helm, Argo CD, Argo Rollouts, Prometheus stack.
+# Uses k3d (k3s-in-Docker) for Codespace compatibility.
+# Installs: k3d, kubectl, Helm, Argo CD, Argo Rollouts, Prometheus stack.
 # Builds and loads: payments-api:v2.3 (stable) and payments-api:v2.4 (canary/OOMKilled).
 # Applies: all K8s manifests to the cluster.
 # =============================================================================
@@ -11,6 +12,7 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NS="payment-prod"
+CLUSTER_NAME="gitops-demo"
 
 echo "========================================"
 echo " GitOps Progressive Delivery Demo Setup"
@@ -36,39 +38,60 @@ bun install
 echo ""
 
 # -----------------------------------------------------------------------------
-# 1. k3s
+# 1. k3d + k3s cluster (runs k3s inside Docker — works in Codespaces)
 # -----------------------------------------------------------------------------
-if command -v k3s &>/dev/null && kubectl get nodes &>/dev/null 2>&1; then
-    echo "[✓] k3s already running"
+if k3d cluster list 2>/dev/null | grep -q "${CLUSTER_NAME}"; then
+    echo "[✓] k3d cluster '${CLUSTER_NAME}' already running"
 else
-    echo "[1/8] Installing k3s..."
-    curl -sfL https://get.k3s.io | \
-        INSTALL_K3S_EXEC="--disable=traefik --write-kubeconfig-mode=644 --snapshotter=native" \
-        K3S_KUBECONFIG_MODE="644" sh -
-
-    # Codespaces containers lack /dev/kmsg — create a stub so kubelet starts
-    sudo touch /dev/kmsg 2>/dev/null || true
-    sudo mknod /dev/kmsg c 1 11 2>/dev/null || true
-
-    # Codespaces don't run systemd and aren't root — start k3s with sudo
-    if ! sudo pgrep -x k3s &>/dev/null; then
-        echo "  systemd not available, starting k3s server manually with sudo..."
-        sudo k3s server --disable=traefik --write-kubeconfig-mode=644 --snapshotter=native &
+    # Install k3d
+    if ! command -v k3d &>/dev/null; then
+        echo "[1/8] Installing k3d..."
+        curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
+        echo "  k3d installed: $(k3d --version)"
+    else
+        echo "[1/8] k3d already installed ($(k3d --version))"
     fi
-    export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 
-    echo "  Waiting for k3s to be ready..."
-    for i in $(seq 1 90); do
-        if kubectl get nodes &>/dev/null 2>&1; then
-            echo "  k3s ready after $((i * 2))s"
-            break
-        fi
-        sleep 2
-    done
-    if ! kubectl get nodes &>/dev/null 2>&1; then
-        echo "FAIL: k3s did not become ready"
-        exit 1
+    # Install kubectl if missing
+    if ! command -v kubectl &>/dev/null; then
+        echo "  Installing kubectl..."
+        sudo curl -fsSL https://dl.k8s.io/release/v1.32.0/bin/linux/amd64/kubectl -o /usr/local/bin/kubectl
+        sudo chmod +x /usr/local/bin/kubectl
     fi
+
+    echo "  Creating k3d cluster '${CLUSTER_NAME}'..."
+    k3d cluster create "${CLUSTER_NAME}" \
+        --agents 1 \
+        --no-lb \
+        -p "30800:30800@agent:0" \
+        -p "30900:30900@agent:0" \
+        -p "30910:30910@agent:0" \
+        --k3s-arg "--disable=traefik@server:0" \
+        --k3s-arg "--disable=metrics-server@server:0" \
+        --wait \
+        --timeout 120s
+
+    # k3d automatically merges kubeconfig — point KUBECONFIG at it
+    export KUBECONFIG="${HOME}/.k3d/kubeconfig-${CLUSTER_NAME}.yaml"
+fi
+
+# Ensure KUBECONFIG is set for all subsequent kubectl/helm commands
+if [ -z "${KUBECONFIG:-}" ]; then
+    export KUBECONFIG="${HOME}/.k3d/kubeconfig-${CLUSTER_NAME}.yaml"
+fi
+
+echo "  Waiting for cluster nodes to be Ready..."
+for i in $(seq 1 60); do
+    if kubectl get nodes -o jsonpath='{.items[0].status.conditions[?(@.type=="Ready")].status}' 2>/dev/null | grep -q "True"; then
+        echo "  Cluster ready after $((i * 2))s"
+        break
+    fi
+    sleep 2
+done
+
+if ! kubectl get nodes &>/dev/null 2>&1; then
+    echo "FAIL: cluster did not become ready"
+    exit 1
 fi
 
 echo "  Node: $(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')"
@@ -156,7 +179,7 @@ else
 fi
 
 # -----------------------------------------------------------------------------
-# 7. Build & Load Payment App Images into k3s
+# 7. Build & Load Payment App Images into k3d cluster
 # -----------------------------------------------------------------------------
 echo "[7/8] Building and loading payments-api images..."
 cd "${REPO_DIR}/payments-app"
@@ -164,14 +187,14 @@ cd "${REPO_DIR}/payments-app"
 # Build stable image
 echo "  Building payments-api:v2.3 (stable)..."
 docker build -t payments-api:v2.3 stable/
-docker save payments-api:v2.3 | sudo k3s ctr images import -
-echo "  ✓ payments-api:v2.3 loaded into k3s"
+k3d image load -c "${CLUSTER_NAME}" payments-api:v2.3
+echo "  ✓ payments-api:v2.3 loaded into cluster"
 
 # Build canary image (with memory leak)
 echo "  Building payments-api:v2.4 (canary/OOMKilled)..."
 docker build -t payments-api:v2.4 canary/
-docker save payments-api:v2.4 | sudo k3s ctr images import -
-echo "  ✓ payments-api:v2.4 loaded into k3s"
+k3d image load -c "${CLUSTER_NAME}" payments-api:v2.4
+echo "  ✓ payments-api:v2.4 loaded into cluster"
 
 cd "${REPO_DIR}"
 
@@ -197,13 +220,15 @@ echo " ✓ CLUSTER READY"
 echo "========================================"
 echo ""
 echo "Components running:"
-echo "  k3s:             $(kubectl get nodes -o jsonpath='{.items[0].status.conditions[?(@.type=="Ready")].status}')"
+echo "  k3d/k3s:         $(kubectl get nodes -o jsonpath='{.items[0].status.conditions[?(@.type=="Ready")].status}')"
 echo "  Argo CD:         http://localhost:30800"
 echo "  Rollouts:        http://localhost:30910"
 echo "  Prometheus:      http://localhost:30900"
 echo ""
+echo "KUBECONFIG=${KUBECONFIG}"
+echo ""
 echo "Next steps:"
-echo "  1. Start the demo controller:  bash demo-controller/cycle.sh"
-echo "  2. Start the Next.js dashboard: KUBECONFIG=/etc/rancher/k3s/k3s.yaml PROMETHEUS_URL=http://localhost:30900 NODE_TLS_REJECT_UNAUTHORIZED=0 bun run dev"
+echo "  1. Start the demo controller:  KUBECONFIG=${KUBECONFIG} bash demo-controller/cycle.sh"
+echo "  2. Start the Next.js dashboard: KUBECONFIG=${KUBECONFIG} PROMETHEUS_URL=http://localhost:30900 NODE_TLS_REJECT_UNAUTHORIZED=0 bun run dev"
 echo "  3. Open http://localhost:3000"
 echo ""
