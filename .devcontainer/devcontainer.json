@@ -13,21 +13,17 @@
   },
   "forwardPorts": [
     3000,
-    8080,
-    9090,
-    3100,
     30800,
     30900,
     30910
   ],
   "portsAttributes": {
     "3000": { "label": "Next.js Dashboard" },
-    "8080": { "label": "Argo CD UI" },
-    "9090": { "label": "Prometheus" },
-    "30900": { "label": "Prometheus NodePort" },
+    "30800": { "label": "Argo CD UI" },
+    "30900": { "label": "Prometheus" },
     "30910": { "label": "Rollouts Dashboard" }
   },
-  "postCreateCommand": "bash /workspace/gitops-progressive-delivery-demo/setup.sh",
+  "postCreateCommand": "cd /workspace/gitops-progressive-delivery-demo && bun install",
   "customizations": {
     "vscode": {
       "extensions": ["ms-kubernetes-tools.vscode-kubernetes-tools"]
