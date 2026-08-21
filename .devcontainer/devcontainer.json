@@ -1,6 +1,22 @@
 {
   "name": "GitOps Progressive Delivery Demo",
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "latest",
+      "moby": true
+    },
+    "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {
+      "version": "1.32",
+      "helm": "latest",
+      "minikube": "none"
+    }
+  },
+  "hostRequirements": {
+    "cpus": 4,
+    "memory": "16gb",
+    "storage": "32gb"
+  },
   "forwardPorts": [
     3000,
     30800,
@@ -13,7 +29,11 @@
     "30900": { "label": "Prometheus" },
     "30910": { "label": "Rollouts Dashboard" }
   },
-  "postCreateCommand": "cd /workspace/gitops-progressive-delivery-demo && curl -fsSL https://bun.sh/install | bash && bun install",
+  "postCreateCommand": "cd ${containerWorkspaceFolder} && curl -fsSL https://bun.sh/install | bash && $HOME/.bun/bin/bun install",
+  "remoteEnv": {
+    "PATH": "${containerEnv:HOME}/.bun/bin:${containerEnv:PATH}",
+    "KUBECONFIG": "${containerEnv:HOME}/.k3d/kubeconfig-gitops-demo.yaml"
+  },
   "customizations": {
     "vscode": {
       "extensions": ["ms-kubernetes-tools.vscode-kubernetes-tools"]
