@@ -18,6 +18,24 @@ echo "========================================"
 echo ""
 
 # -----------------------------------------------------------------------------
+# 0. Bun (needed for dashboard build and dev server)
+# -----------------------------------------------------------------------------
+if command -v bun &>/dev/null; then
+    echo "[✓] Bun already installed ($(bun --version))"
+else
+    echo "[0/8] Installing Bun..."
+    curl -fsSL https://bun.com/install | bash
+    export PATH="$HOME/.bun/bin:$PATH"
+    echo "  Bun installed: $(bun --version)"
+fi
+
+# Install npm dependencies
+cd "${REPO_DIR}"
+bun install
+
+echo ""
+
+# -----------------------------------------------------------------------------
 # 1. k3s
 # -----------------------------------------------------------------------------
 if command -v k3s &>/dev/null && kubectl get nodes &>/dev/null 2>&1; then
