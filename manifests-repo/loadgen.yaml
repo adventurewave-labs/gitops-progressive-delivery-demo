@@ -1,0 +1,49 @@
+# Continuous traffic against both Services.
+#
+# Without this there are no http_requests_total samples, every AnalysisRun
+# query returns an empty vector, and Argo Rollouts aborts with
+# "reflect: slice index out of range" instead of on a measured SLO breach.
+#
+# Uses the payments-api image itself (alpine base, BusyBox wget) so no extra
+# image has to be pulled.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payments-loadgen
+  namespace: payment-prod
+  labels:
+    app: payments-loadgen
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: payments-loadgen
+  template:
+    metadata:
+      labels:
+        app: payments-loadgen
+    spec:
+      containers:
+      - name: loadgen
+        image: payments-api:v2.3
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          echo "loadgen: driving payments-api-stable and payments-api-canary"
+          while true; do
+            i=0
+            while [ $i -lt 5 ]; do
+              wget -q -O /dev/null -T 2 http://payments-api-stable/api/payments || true
+              wget -q -O /dev/null -T 2 http://payments-api-canary/api/payments || true
+              i=$((i + 1))
+            done
+            sleep 1
+          done
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 200m
+            memory: 64Mi

@@ -7,26 +7,47 @@ spec:
   args:
   - name: service-name
   metrics:
+  # ---------------------------------------------------------------------------
+  # Error rate measured on the canary Service only.
+  #
+  # `or on() vector(0)` keeps the query from returning an empty vector in the
+  # first seconds of a canary, before any sample exists — an empty result makes
+  # Argo Rollouts fail the metric with "reflect: slice index out of range"
+  # rather than on the SLO.
+  # clamp_min avoids a 0/0 NaN when no requests have been served yet.
+  # ---------------------------------------------------------------------------
   - name: canary-error-rate
     interval: 10s
     count: 12
     # Fail if error rate exceeds 1%
     successCondition: result[0] < 1.0
     failureLimit: 2
+    consecutiveErrorLimit: 4
     provider:
       prometheus:
         address: http://prometheus-operated.monitoring.svc.cluster.local:9090
         query: |
-          sum(rate(http_requests_total{service="{{args.service-name}}",code=~"5.."}[2m])) 
-          / sum(rate(http_requests_total{service="{{args.service-name}}"}[2m])) * 100
+          (
+            sum(rate(http_requests_total{service="{{args.service-name}}",code=~"5.."}[1m]))
+            /
+            clamp_min(sum(rate(http_requests_total{service="{{args.service-name}}"}[1m])), 0.001)
+          ) * 100
+          or on() vector(0)
   - name: canary-p99-latency
     interval: 10s
     count: 12
     # Fail if p99 latency exceeds 500ms
     successCondition: result[0] < 500
     failureLimit: 2
+    consecutiveErrorLimit: 4
     provider:
       prometheus:
         address: http://prometheus-operated.monitoring.svc.cluster.local:9090
         query: |
-          histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{service="{{args.service-name}}"}[2m])) by (le)) * 1000
+          (
+            histogram_quantile(
+              0.99,
+              sum(rate(http_request_duration_seconds_bucket{service="{{args.service-name}}"}[1m])) by (le)
+            ) * 1000
+          ) > 0
+          or on() vector(0)

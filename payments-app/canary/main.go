@@ -1,49 +1,123 @@
 package main
 
 import (
-	"expvar"
 	"fmt"
 	"log"
 	"math/rand"
 	"net/http"
 	"os"
 	"runtime"
+	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 )
 
-// Same Prometheus metrics as stable
+// -----------------------------------------------------------------------------
+// Prometheus metrics, text exposition format (no external deps).
+// Identical exposition to the stable build so the AnalysisTemplate can compare
+// the canary Service against the same series names.
+// -----------------------------------------------------------------------------
+
+var durationBuckets = []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10}
+
+type metrics struct {
+	mu           sync.Mutex
+	requests     map[string]uint64
+	bucketCounts []uint64
+	durSum       float64
+	durCount     uint64
+}
+
+func newMetrics() *metrics {
+	return &metrics{
+		requests:     map[string]uint64{"200": 0, "500": 0},
+		bucketCounts: make([]uint64, len(durationBuckets)),
+	}
+}
+
+func (m *metrics) observe(code int, seconds float64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.requests[strconv.Itoa(code)]++
+	m.durSum += seconds
+	m.durCount++
+	for i, b := range durationBuckets {
+		if seconds <= b {
+			m.bucketCounts[i]++
+			return
+		}
+	}
+}
+
+func (m *metrics) writeTo(w http.ResponseWriter, version string, heapMB, leakMB float64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	fmt.Fprintf(w, "# HELP http_requests_total Total HTTP requests handled, by status code.\n")
+	fmt.Fprintf(w, "# TYPE http_requests_total counter\n")
+	for _, code := range []string{"200", "500"} {
+		fmt.Fprintf(w, "http_requests_total{code=\"%s\"} %d\n", code, m.requests[code])
+	}
+
+	fmt.Fprintf(w, "# HELP http_request_duration_seconds Request latency.\n")
+	fmt.Fprintf(w, "# TYPE http_request_duration_seconds histogram\n")
+	var cumulative uint64
+	for i, b := range durationBuckets {
+		cumulative += m.bucketCounts[i]
+		fmt.Fprintf(w, "http_request_duration_seconds_bucket{le=\"%g\"} %d\n", b, cumulative)
+	}
+	fmt.Fprintf(w, "http_request_duration_seconds_bucket{le=\"+Inf\"} %d\n", m.durCount)
+	fmt.Fprintf(w, "http_request_duration_seconds_sum %g\n", m.durSum)
+	fmt.Fprintf(w, "http_request_duration_seconds_count %d\n", m.durCount)
+
+	fmt.Fprintf(w, "# HELP process_heap_alloc_mb Go heap currently allocated, in MiB.\n")
+	fmt.Fprintf(w, "# TYPE process_heap_alloc_mb gauge\n")
+	fmt.Fprintf(w, "process_heap_alloc_mb %g\n", heapMB)
+
+	fmt.Fprintf(w, "# HELP memory_leak_mb Memory deliberately leaked by this build, in MiB.\n")
+	fmt.Fprintf(w, "# TYPE memory_leak_mb gauge\n")
+	fmt.Fprintf(w, "memory_leak_mb %g\n", leakMB)
+
+	fmt.Fprintf(w, "# HELP payments_api_info Build info.\n")
+	fmt.Fprintf(w, "# TYPE payments_api_info gauge\n")
+	fmt.Fprintf(w, "payments_api_info{version=\"%s\"} 1\n", version)
+}
+
 var (
-	httpRequestsTotal  = expvar.NewMap("http_requests_total")
-	httpDurationBucket = expvar.NewMap("http_request_duration_seconds_bucket")
-	heapAllocMB       = expvar.NewFloat("process_heap_alloc_mb")
-	memoryLeakMB      = expvar.NewFloat("memory_leak_mb")
+	mets             = newMetrics()
+	requestCounter   uint64
+	leakedMB         atomic.Int64
+	currentErrorRate atomic.Int64 // basis points; 10000 = 100%
 )
 
-var requestCounter uint64
+func heapMB() float64 {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	return float64(m.Alloc) / 1024.0 / 1024.0
+}
 
-// startMemoryLeak allocates memory in a background goroutine.
-// With a 256Mi limit and ~10MB/5s allocation rate, OOMKilled occurs in ~2 minutes.
-// With a 128Mi limit, OOMKilled occurs in ~1 minute.
+// startMemoryLeak allocates 10MB every 5s and never frees it.
+// The Rollout sets a 128Mi container limit, so the kernel OOMKills this
+// container after roughly a minute. This is the real failure the demo shows.
 func startMemoryLeak() {
 	var leaked [][]byte
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
 	for range ticker.C {
-		// Allocate 10MB chunk — write to prevent compiler optimization
 		chunk := make([]byte, 10*1024*1024)
 		for i := range chunk {
-			chunk[i] = byte(i % 256)
+			chunk[i] = byte(i % 256) // write, so the allocation is real
 		}
 		leaked = append(leaked, chunk)
-		memoryLeakMB.Set(float64(len(leaked)*10) / 1.0)
+		leakedMB.Store(int64(len(leaked) * 10))
 		log.Printf("[LEAK] allocated %d chunks (%d MB total)", len(leaked), len(leaked)*10)
 	}
 }
 
-// startErrorRateRamp gradually increases the error rate over time.
-// After 30s: ~15% error rate. After 60s: ~50% error rate.
+// startErrorRateRamp ramps the 5xx rate from 0% to 50% over 180s, so the
+// canary's error-rate SLO is genuinely breached while it is still alive.
 func startErrorRateRamp() {
 	startTime := time.Now()
 	ticker := time.NewTicker(5 * time.Second)
@@ -51,14 +125,14 @@ func startErrorRateRamp() {
 
 	for range ticker.C {
 		elapsed := time.Since(startTime).Seconds()
-		// Ramp from 0% to 50% over 90 seconds
-		rate := min(0.50, elapsed/180.0)
-		atomic.StoreInt64(&currentErrorRate, int64(rate*10000))
+		rate := elapsed / 180.0
+		if rate > 0.50 {
+			rate = 0.50
+		}
+		currentErrorRate.Store(int64(rate * 10000))
 		log.Printf("[RAMP] error rate set to %.2f%%", rate*100)
 	}
 }
-
-var currentErrorRate int64 // stored as basis points (10000 = 100%)
 
 func main() {
 	port := os.Getenv("PORT")
@@ -70,22 +144,13 @@ func main() {
 		version = "v2.4"
 	}
 
-	rand.Seed(time.Now().UnixNano())
-
-	// Start the memory leak — this causes the REAL OOMKilled
 	go startMemoryLeak()
-
-	// Start error rate ramp — simulates degraded performance from memory pressure
 	go startErrorRateRamp()
 
 	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		// Health check fails once memory leak is large enough
-		leakedMB := memoryLeakMB.Value()
-		if leakedMB > 200 {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			w.Write([]byte("unhealthy: memory pressure"))
-			return
-		}
+		// Stay "healthy" for the kubelet: we want the kernel OOMKill to be the
+		// thing that kills this container, not a liveness restart that would
+		// reset the leak before the limit is reached.
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("ok"))
 	})
@@ -94,69 +159,36 @@ func main() {
 		start := time.Now()
 		n := atomic.AddUint64(&requestCounter, 1)
 
-		// Use the ramping error rate
-		rate := float64(atomic.LoadInt64(&currentErrorRate)) / 10000.0
+		rate := float64(currentErrorRate.Load()) / 10000.0
 		if rand.Float64() < rate {
-			httpRequestsTotal.Add("code=5xx", 1)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(fmt.Sprintf(`{"status":"error","version":"%s","error":"memory pressure"}`, version)))
-		} else {
-			httpRequestsTotal.Add("code=2xx", 1)
-			w.Header().Set("Content-Type", "application/json")
-			// Simulate higher latency under memory pressure
-			leakedMB := memoryLeakMB.Value()
-			if leakedMB > 100 {
-				time.Sleep(time.Duration(rand.Intn(500)) * time.Millisecond)
-			}
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(fmt.Sprintf(`{"status":"ok","version":"%s","request_id":%d}`, version, n)))
+			fmt.Fprintf(w, `{"status":"error","version":"%s","error":"memory pressure"}`, version)
+			mets.observe(http.StatusInternalServerError, time.Since(start).Seconds())
+			return
 		}
 
-		dur := time.Since(start).Seconds()
-		httpDurationBucket.Add("le=0.05", 1)
-		if dur > 0.05 {
-			httpDurationBucket.Add("le=0.1", 1)
+		// Latency degrades as the leak grows.
+		if leakedMB.Load() > 60 {
+			time.Sleep(time.Duration(rand.Intn(600)) * time.Millisecond)
+		} else {
+			time.Sleep(time.Duration(rand.Intn(15)) * time.Millisecond)
 		}
-		if dur > 0.1 {
-			httpDurationBucket.Add("le=0.5", 1)
-		}
-		if dur > 0.5 {
-			httpDurationBucket.Add("le=1.0", 1)
-		}
-		if dur > 1.0 {
-			httpDurationBucket.Add("le=2.0", 1)
-		}
-		if dur > 2.0 {
-			httpDurationBucket.Add("le=5.0", 1)
-		}
-		if dur > 5.0 {
-			httpDurationBucket.Add("le=+Inf", 1)
-		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, `{"status":"ok","version":"%s","request_id":%d}`, version, n)
+
+		mets.observe(http.StatusOK, time.Since(start).Seconds())
 	})
 
-	http.Handle("/metrics", expvar.Handler())
+	http.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+		mets.writeTo(w, version, heapMB(), float64(leakedMB.Load()))
+	})
 
 	log.Printf("payments-api %s starting on :%s (WITH MEMORY LEAK)", version, port)
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		log.Fatal(err)
 	}
-}
-
-func init() {
-	go func() {
-		for {
-			var m runtime.MemStats
-			runtime.ReadMemStats(&m)
-			heapAllocMB.Set(float64(m.Alloc) / 1024.0 / 1024.0)
-			time.Sleep(2 * time.Second)
-		}
-	}()
-}
-
-func min(a, b float64) float64 {
-	if a < b {
-		return a
-	}
-	return b
 }

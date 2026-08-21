@@ -8,6 +8,18 @@ prometheus:
   prometheusSpec:
     scrapeInterval: 5s
     retention: 15m
+    # By default the chart restricts discovery to objects labelled
+    # release=prometheus in the release namespace, which silently ignored the
+    # payment-prod ServiceMonitor — every canary query returned an empty vector.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    probeSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    scrapeConfigSelectorNilUsesHelmValues: false
+    serviceMonitorSelector: {}
+    serviceMonitorNamespaceSelector: {}
+    podMonitorSelector: {}
+    podMonitorNamespaceSelector: {}
     resources:
       limits:
         memory: 512Mi

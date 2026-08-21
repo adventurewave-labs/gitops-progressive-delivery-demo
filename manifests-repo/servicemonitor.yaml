@@ -1,0 +1,35 @@
+# Scrapes the stable and canary Services separately.
+#
+# Argo Rollouts rewrites the selector on payments-api-canary to the canary
+# ReplicaSet's pod hash during a rollout, so the series scraped through that
+# Service carry service="payments-api-canary" and describe ONLY the canary
+# pods. That is what makes the AnalysisTemplate's canary query meaningful.
+#
+# This replaces the old PodMonitor, which could not distinguish stable from
+# canary pods (they share the app=payments-api label).
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: payments-api
+  namespace: payment-prod
+  labels:
+    app: payments-api
+spec:
+  namespaceSelector:
+    matchNames:
+    - payment-prod
+  selector:
+    matchLabels:
+      app: payments-api
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 5s
+    scrapeTimeout: 4s
+    honorLabels: true
+    relabelings:
+    # Guarantee the `service` label the AnalysisTemplate queries on, rather
+    # than relying on operator defaults.
+    - sourceLabels: [__meta_kubernetes_service_name]
+      targetLabel: service
+      action: replace
