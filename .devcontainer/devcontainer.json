@@ -3,12 +3,7 @@
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
   "features": {
     "docker-in-docker": {
-      "version": "26",
-      "dockerDashComposeVersion": "v2.29.1"
-    },
-    "node": {
-      "version": "20",
-      "pnpm": false
+      "dockerDashComposeVersion": "none"
     }
   },
   "forwardPorts": [
@@ -23,7 +18,7 @@
     "30900": { "label": "Prometheus" },
     "30910": { "label": "Rollouts Dashboard" }
   },
-  "postCreateCommand": "cd /workspace/gitops-progressive-delivery-demo && bun install",
+  "postCreateCommand": "cd /workspace/gitops-progressive-delivery-demo && curl -fsSL https://bun.sh/install | bash && bun install",
   "customizations": {
     "vscode": {
       "extensions": ["ms-kubernetes-tools.vscode-kubernetes-tools"]
