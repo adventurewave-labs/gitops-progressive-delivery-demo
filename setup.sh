@@ -62,10 +62,9 @@ else
     echo "  Creating k3d cluster '${CLUSTER_NAME}'..."
     k3d cluster create "${CLUSTER_NAME}" \
         --agents 1 \
-        --no-lb \
-        -p "30800:30800@agent:0" \
-        -p "30900:30900@agent:0" \
-        -p "30910:30910@agent:0" \
+        -p "30800:30800@loadbalancer" \
+        -p "30900:30900@loadbalancer" \
+        -p "30910:30910@loadbalancer" \
         --k3s-arg "--disable=traefik@server:0" \
         --k3s-arg "--disable=metrics-server@server:0" \
         --wait \
