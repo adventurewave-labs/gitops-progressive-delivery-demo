@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: prometheus-slo
+  namespace: payment-prod
+spec:
+  args:
+  - name: service-name
+  metrics:
+  - name: canary-error-rate
+    interval: 10s
+    # Fail if error rate exceeds 1%
+    successCondition: result[0] < 1.0
+    failureLimit: 2
+    provider:
+      prometheus:
+        address: http://prometheus-operated.monitoring.svc.cluster.local:9090
+        query: |
+          sum(rate(http_requests_total{service="{{args.service-name}}",code=~"5.."}[2m])) 
+          / sum(rate(http_requests_total{service="{{args.service-name}}"}[2m])) * 100
+  - name: canary-p99-latency
+    interval: 10s
+    # Fail if p99 latency exceeds 500ms
+    successCondition: result[0] < 500
+    failureLimit: 2
+    provider:
+      prometheus:
+        address: http://prometheus-operated.monitoring.svc.cluster.local:9090
+        query: |
+          histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{service="{{args.service-name}}"}[2m])) by (le)) * 1000

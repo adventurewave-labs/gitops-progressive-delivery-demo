@@ -1,0 +1,34 @@
+# Prometheus Stack Helm values for the demo
+# Minimal: no Grafana, no Alertmanager, 5s scrape interval
+
+prometheus:
+  service:
+    type: NodePort
+    nodePort: 30900
+  prometheusSpec:
+    scrapeInterval: 5s
+    retention: 15m
+    resources:
+      limits:
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+    # Short intervals to capture the canary failure fast
+    evaluationInterval: 5s
+
+alertmanager:
+  enabled: false
+
+grafana:
+  enabled: false
+
+kubeStateMetrics:
+  resources:
+    limits:
+      memory: 128Mi
+
+prometheus-node-exporter:
+  resources:
+    limits:
+      memory: 64Mi

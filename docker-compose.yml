@@ -1,7 +1,16 @@
-# gitops-progressive-delivery-demo
+# gitops-progressive-delivery-demo — REAL version
 #
-# One-command local stack: `docker compose up --build`.
-# Builds the standalone Next.js image and serves it on http://localhost:3000.
+# NOTE: In a Codespace, the cluster runs on the host (k3s).
+# The Next.js dashboard runs directly on the host via dev-real.sh.
+# This Docker Compose is for CI / standalone deployment only.
+#
+# For local dev:
+#   1. bash setup.sh          # bootstrap k3s + Helm + images
+#   2. bun run dev:real       # start dashboard against real cluster
+#   3. bash demo-controller/cycle.sh  # start auto-cycling
+#
+# For Docker-based deployment (single machine):
+#   docker compose up --build
 
 services:
   web:
@@ -15,6 +24,14 @@ services:
     environment:
       - NODE_ENV=production
       - NEXT_TELEMETRY_DISABLED=1
+      - KUBECONFIG=/home/node/.kube/config
+      - PROMETHEUS_URL=http://host.docker.internal:30900
+      - NODE_TLS_REJECT_UNAUTHORIZED=0
+    volumes:
+      # Mount the k3s kubeconfig so the dashboard can talk to the cluster
+      - /etc/rancher/k3s/k3s.yaml:/home/node/.kube/config:ro
+    # Network mode host so it can reach k3s NodePorts (30800, 30900, 30910)
+    network_mode: host
     restart: unless-stopped
     healthcheck:
       test:

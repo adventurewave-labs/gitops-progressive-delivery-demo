@@ -1,0 +1,24 @@
+# Argo CD Application for display/visibility.
+# The demo-controller drives actual deploys via kubectl apply.
+# Argo CD detects the resulting cluster state and shows sync status.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: payments-api
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/adventurewave-labs/gitops-progressive-delivery-demo
+    targetRevision: HEAD
+    path: manifests-repo
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: payment-prod
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=false
+    - ServerSideApply=true

@@ -1,0 +1,19 @@
+# Argo Rollouts Helm values for the demo
+
+controller:
+  replicas: 1
+  resources:
+    limits:
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+dashboard:
+  enabled: true
+  service:
+    type: NodePort
+    nodePort: 30910
+  resources:
+    limits:
+      memory: 64Mi

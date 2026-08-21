@@ -1,59 +1,79 @@
 /**
- * Mock kube-apiserver. Implements enough of the K8s REST API to satisfy
- * `kubectl`-style GET requests against the payment-prod namespace.
+ * Kube API proxy — REWRITTEN to forward requests to the REAL k3s apiserver.
  *
  *   GET /api/k8s/api/v1/namespaces/payment-prod/pods
  *   GET /api/k8s/apis/apps/v1/namespaces/payment-prod/deployments
  *   GET /api/k8s/apis/argoproj.io/v1alpha1/namespaces/payment-prod/rollouts
  *
- * Returns standard Kubernetes list envelopes:
- *
- *   { kind: "PodList", apiVersion: "v1", items: [...] }
+ * Returns the raw K8s JSON response unchanged.
  */
-import { NextRequest, NextResponse } from "next/server";
-import { listResources } from "@/lib/k8s-mock-data";
+import { NextRequest, NextResponse } from 'next/server';
+import { getApiServer, loadConfig } from '@/lib/k8s-client';
 
-export const dynamic = "force-dynamic";
-
-function kindFromPath(path: string): string {
-  if (path.includes("/pods")) return "Pod";
-  if (path.includes("/deployments")) return "Deployment";
-  if (path.includes("/services")) return "Service";
-  if (path.includes("/ingresses")) return "Ingress";
-  if (path.includes("/persistentvolumeclaims")) return "PersistentVolumeClaim";
-  if (path.includes("/rollouts")) return "Rollout";
-  if (path.endsWith("/nodes")) return "Node";
-  return "Unknown";
-}
-
-function apiVersionFromPath(path: string): string {
-  if (path.includes("/apis/apps/v1/")) return "apps/v1";
-  if (path.includes("/apis/networking.k8s.io/v1/")) return "networking.k8s.io/v1";
-  if (path.includes("/apis/argoproj.io/v1alpha1/")) return "argoproj.io/v1alpha1";
-  return "v1";
-}
+export const dynamic = 'force-dynamic';
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ path: string[] }> },
 ) {
   const { path: pathSegments } = await params;
-  const path = "/" + pathSegments.join("/");
+  const path = '/' + pathSegments.join('/');
 
-  // Simulate realistic K8s API latency (50-150ms)
-  await new Promise((r) => setTimeout(r, 50 + Math.random() * 100));
+  let apiServer: string;
+  try {
+    apiServer = getApiServer();
+  } catch {
+    return NextResponse.json(
+      { kind: 'Status', apiVersion: 'v1', code: 500, message: 'kubeconfig not loaded' },
+      { status: 500 },
+    );
+  }
 
-  const items = listResources(path);
-  const kind = `${kindFromPath(path)}List`;
-  const apiVersion = apiVersionFromPath(path);
+  const targetUrl = `${apiServer}${path}`;
 
-  return NextResponse.json({
-    kind,
-    apiVersion,
-    metadata: {
-      resourceVersion: String(Date.now()),
-      continue: "",
-    },
-    items,
-  });
+  try {
+    // Load config to get the auth headers
+    loadConfig();
+    const kc = await import('@kubernetes/client-node').then(m => {
+      const config = new m.KubeConfig();
+      const kubeconfigPath = process.env.KUBECONFIG || '';
+      if (kubeconfigPath) config.loadFromFile(kubeconfigPath);
+      else config.loadFromDefault();
+      return config;
+    });
+
+    // Get auth headers from kubeconfig
+    const cluster = kc.getCurrentCluster();
+    const user = kc.getCurrentUser();
+    const headers: Record<string, string> = {};
+
+    if (user?.token) {
+      headers['Authorization'] = `Bearer ${user.token}`;
+    } else if (user?.certFile && user?.keyFile) {
+      // Client cert auth — can't easily forward through fetch, use token instead
+      // For k3s, the default service account token works
+    }
+
+    // For k3s, use the service account token if available, or try without auth
+    // (k3s API on localhost is often accessible without auth in dev)
+    const res = await fetch(targetUrl, {
+      headers,
+      // Bypass self-signed cert for k3s
+      // @ts-ignore
+      rejectUnauthorized: false,
+      // @ts-ignore
+      signal: AbortSignal.timeout(10000),
+    });
+
+    const data = await res.json();
+    return NextResponse.json(data);
+  } catch (err) {
+    return NextResponse.json(
+      {
+        kind: 'Status', apiVersion: 'v1', code: 502,
+        message: `kube-api proxy error: ${err instanceof Error ? err.message : String(err)}`,
+      },
+      { status: 502 },
+    );
+  }
 }

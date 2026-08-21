@@ -1,0 +1,42 @@
+# Argo CD Helm values for the demo
+# Minimal config: no TLS, NodePort for easy access from the Codespace
+
+server:
+  service:
+    type: NodePort
+    nodePort: 30800
+  extraArgs:
+    - --insecure
+  ingress:
+    enabled: false
+
+repoServer:
+  service:
+    type: ClusterIP
+
+controller:
+  resources:
+    limits:
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+# Disable dex, redis-ha, etc. for lightweight demo
+dex:
+  enabled: false
+
+redis:
+  enabled: true
+  resources:
+    limits:
+      memory: 128Mi
+
+redis-ha:
+  enabled: false
+
+applicationSet:
+  enabled: false
+
+notifications:
+  enabled: false

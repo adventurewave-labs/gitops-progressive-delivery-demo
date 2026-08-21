@@ -1,0 +1,14 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: payments-api
+  namespace: payment-prod
+spec:
+  selector:
+    matchLabels:
+      app: payments-api
+  podMetricsEndpoints:
+  - port: http
+    path: /metrics
+    interval: 5s
+    honorLabels: true

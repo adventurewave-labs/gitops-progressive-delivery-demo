@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: payments-api-stable
+  namespace: payment-prod
+  labels:
+    app: payments-api
+    service: stable
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8080
+    name: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payments-api-canary
+  namespace: payment-prod
+  labels:
+    app: payments-api
+    service: canary
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8080
+    name: http
