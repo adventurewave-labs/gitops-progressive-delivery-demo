@@ -46,6 +46,10 @@ else
         INSTALL_K3S_EXEC="--disable=traefik --write-kubeconfig-mode=644 --snapshotter=native" \
         K3S_KUBECONFIG_MODE="644" sh -
 
+    # Codespaces containers lack /dev/kmsg — create a stub so kubelet starts
+    sudo touch /dev/kmsg 2>/dev/null || true
+    sudo mknod /dev/kmsg c 1 11 2>/dev/null || true
+
     # Codespaces don't run systemd and aren't root — start k3s with sudo
     if ! sudo pgrep -x k3s &>/dev/null; then
         echo "  systemd not available, starting k3s server manually with sudo..."
