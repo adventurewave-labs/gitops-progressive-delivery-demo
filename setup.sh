@@ -46,12 +46,12 @@ else
         INSTALL_K3S_EXEC="--disable=traefik --write-kubeconfig-mode=644" \
         K3S_KUBECONFIG_MODE="644" sh -
 
-    # Codespaces don't run systemd — start k3s manually
-    if ! pgrep -x k3s &>/dev/null; then
-        echo "  systemd not available, starting k3s server manually..."
-        k3s server --disable=traefik --write-kubeconfig-mode=644 &
-        export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+    # Codespaces don't run systemd and aren't root — start k3s with sudo
+    if ! sudo pgrep -x k3s &>/dev/null; then
+        echo "  systemd not available, starting k3s server manually with sudo..."
+        sudo k3s server --disable=traefik --write-kubeconfig-mode=644 &
     fi
+    export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 
     echo "  Waiting for k3s to be ready..."
     for i in $(seq 1 90); do
