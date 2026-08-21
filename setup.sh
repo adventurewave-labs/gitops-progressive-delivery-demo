@@ -123,9 +123,9 @@ else
     k3d cluster create "${CLUSTER_NAME}" \
         --agents 1 \
         --no-lb \
-        -p "30800:30800@agent:0" \
-        -p "30900:30900@agent:0" \
-        -p "30910:30910@agent:0" \
+        -p "30800:30800@agent:0:direct" \
+        -p "30900:30900@agent:0:direct" \
+        -p "30910:30910@agent:0:direct" \
         --k3s-arg "--disable=traefik@server:0" \
         --k3s-arg "--disable=metrics-server@server:0" \
         --wait \
@@ -156,7 +156,7 @@ echo "[2/8] Tooling ready: kubectl / helm / k3d / kubectl-argo-rollouts"
 # 3. Argo Rollouts CRDs (must be installed before the controller)
 # -----------------------------------------------------------------------------
 echo "[3/8] Installing Argo Rollouts CRDs..."
-kubectl apply --server-side -f https://raw.githubusercontent.com/argoproj/argo-rollouts/stable/manifests/crds.yaml
+# CRDs are installed by the argo-rollouts Helm chart (installCRDs=true) in step 5
 echo "  CRDs applied"
 
 # -----------------------------------------------------------------------------
@@ -187,12 +187,13 @@ if kubectl get deployment argo-rollouts -n argo-rollouts &>/dev/null; then
 else
     echo "[5/8] Installing Argo Rollouts controller..."
     kubectl create namespace argo-rollouts --dry-run=client -o yaml | kubectl apply -f -
-    helm repo add argo-rollouts https://argoproj.github.io/argo-rollouts >/dev/null 2>&1 || true
+    helm repo add argo https://argoproj.github.io/argo-helm >/dev/null 2>&1 || true
     helm repo update >/dev/null
 
-    helm upgrade --install argo-rollouts argo-rollouts/argo-rollouts \
+    helm upgrade --install argo-rollouts argo/argo-rollouts \
         -n argo-rollouts \
         -f "${REPO_DIR}/helm-values/argo-rollouts-values.yaml" \
+        --set installCRDs=true \
         --wait --timeout 600s
 
     echo "  Waiting for Rollouts controller to be ready..."

@@ -9,6 +9,7 @@ spec:
   metrics:
   - name: canary-error-rate
     interval: 10s
+    count: 12
     # Fail if error rate exceeds 1%
     successCondition: result[0] < 1.0
     failureLimit: 2
@@ -20,6 +21,7 @@ spec:
           / sum(rate(http_requests_total{service="{{args.service-name}}"}[2m])) * 100
   - name: canary-p99-latency
     interval: 10s
+    count: 12
     # Fail if p99 latency exceeds 500ms
     successCondition: result[0] < 500
     failureLimit: 2

@@ -64,7 +64,4 @@ spec:
           - name: service-name
             value: payments-api-canary
       - setWeight: 100
-      analysis:
-        successfulRunHistoryLimit: 3
-        failedRunHistoryLimit: 3
       abortScaleDownDelaySeconds: 30
