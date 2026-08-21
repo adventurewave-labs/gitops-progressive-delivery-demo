@@ -1,6 +1,8 @@
 {
   "name": "GitOps Progressive Delivery Demo",
-  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  // Pinned: the floating `:ubuntu` tag now resolves to Ubuntu 'resolute',
+  // where the docker-in-docker feature has no moby-cli packages.
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
   "features": {
     "ghcr.io/devcontainers/features/docker-in-docker:2": {
       "version": "latest",
