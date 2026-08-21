@@ -1,118 +1,191 @@
 #!/usr/bin/env bash
-# Records 3 demo GIFs of the REAL running demo.
-# The cluster must be running (setup.sh) and demo-controller cycling.
+# =============================================================================
+# record-gifs.sh — Records demo GIFs of the REAL running demo.
+#
+# Requires: the cluster up (bash setup.sh), the dashboard running
+# (bash dev-real.sh) and the demo controller cycling
+# (bash demo-controller/cycle.sh). It will start the last two itself if they
+# are not already running.
+#
+# Recording is done with Playwright (Chromium, recordVideo) and encoded to GIF
+# with ffmpeg. Both are installed on first run into ./.playwright (gitignored),
+# so this works on a fresh clone with no proprietary tooling.
+# =============================================================================
 set -euo pipefail
-if [ -n "${KUBECONFIG:-}" ] && [ ! -f "${KUBECONFIG}" ]; then unset KUBECONFIG; fi
-BASE_URL="http://localhost:3000"
-OUT_DIR="/home/z/my-project/public/showcase"
-mkdir -p "$OUT_DIR"
 
-# Verify the real cluster is running
+# A stale KUBECONFIG pointing at a file that does not exist breaks every
+# kubectl call; fall back to the k3d kubeconfig in that case.
+if [ -n "${KUBECONFIG:-}" ] && [ ! -f "${KUBECONFIG}" ]; then unset KUBECONFIG; fi
+
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+BASE_URL="${BASE_URL:-http://localhost:3000}"
+OUT_DIR="${OUT_DIR:-${REPO_DIR}/public/showcase}"
+PW_DIR="${REPO_DIR}/.playwright"
+PW_VERSION="${PW_VERSION:-1.49.1}"
+
+export KUBECONFIG="${KUBECONFIG:-${HOME}/.k3d/kubeconfig-gitops-demo.yaml}"
+export PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-${HOME}/.cache/ms-playwright}"
+
+cd "${REPO_DIR}"
+mkdir -p "${OUT_DIR}"
+
+SUDO=""
+if [ "$(id -u)" -ne 0 ]; then SUDO="sudo"; fi
+
+# -----------------------------------------------------------------------------
+# Preflight
+# -----------------------------------------------------------------------------
 echo "Checking cluster..."
-if ! kubectl get nodes &>/dev/null 2>&1; then
-    echo "FAIL: k3s not running. Run setup.sh first."
+if ! kubectl get nodes &>/dev/null; then
+    echo "FAIL: cluster not reachable (KUBECONFIG=${KUBECONFIG}). Run: bash setup.sh"
     exit 1
 fi
-echo "  k3s: OK"
+echo "  cluster: OK"
 
-# Verify demo controller is running (or start it)
-if ! pgrep -f "cycle.sh" &>/dev/null; then
+if ! command -v ffmpeg &>/dev/null; then
+    echo "Installing ffmpeg..."
+    ${SUDO} apt-get update -qq
+    ${SUDO} apt-get install -y -qq ffmpeg
+fi
+echo "  ffmpeg: $(ffmpeg -version | head -1 | cut -d' ' -f1-3)"
+
+if [ ! -d "${PW_DIR}/node_modules/playwright" ]; then
+    echo "Installing Playwright ${PW_VERSION} into .playwright/ (first run only)..."
+    mkdir -p "${PW_DIR}"
+    ( cd "${PW_DIR}" \
+      && npm init -y >/dev/null 2>&1 \
+      && npm install --silent --no-audit --no-fund "playwright@${PW_VERSION}" >/dev/null )
+fi
+echo "  playwright: ${PW_VERSION}"
+
+echo "Ensuring Chromium is installed for Playwright..."
+( cd "${PW_DIR}" && ${SUDO} -E npx --yes playwright install-deps chromium >/dev/null 2>&1 || true )
+( cd "${PW_DIR}" && npx --yes playwright install chromium >/dev/null )
+
+# Demo controller
+if ! pgrep -f "demo-controller/cycle.sh" >/dev/null 2>&1; then
     echo "Starting demo controller in background..."
-    bash demo-controller/cycle.sh &
-    disown
+    setsid bash "${REPO_DIR}/demo-controller/cycle.sh" > /tmp/cycle.log 2>&1 < /dev/null &
+    disown || true
     sleep 5
 fi
+echo "  demo controller: running"
 
-# Verify dev server is running
-if ! curl -sf -o /dev/null "$BASE_URL/" 2>/dev/null; then
-    echo "Starting dev server..."
-    cd /home/z/my-project
-    KUBECONFIG=/etc/rancher/k3s/k3s.yaml \
-      PROMETHEUS_URL=http://localhost:30900 \
-      NODE_TLS_REJECT_UNAUTHORIZED=0 \
-      setsid bun run dev > /tmp/dev.log 2>&1 < /dev/null &
-    disown
-    for i in {1..60}; do
-        if curl -sf -o /dev/null "$BASE_URL/" 2>/dev/null; then
-            echo "  dev server ready after ${i}s"
+# Dashboard
+if ! curl -sf -o /dev/null "${BASE_URL}/" 2>/dev/null; then
+    echo "Starting dashboard..."
+    setsid bash "${REPO_DIR}/dev-real.sh" > /tmp/dev.log 2>&1 < /dev/null &
+    disown || true
+    for i in $(seq 1 90); do
+        if curl -sf -o /dev/null "${BASE_URL}/" 2>/dev/null; then
+            echo "  dashboard ready after ${i}s"
             break
         fi
         sleep 1
     done
 fi
-if ! curl -sf -o /dev/null "$BASE_URL/"; then
-    echo "FAIL: server not reachable"
+if ! curl -sf -o /dev/null "${BASE_URL}/"; then
+    echo "FAIL: dashboard not reachable at ${BASE_URL}. Run: bash dev-real.sh"
     exit 1
 fi
+echo "  dashboard: OK"
+
+# -----------------------------------------------------------------------------
+# Playwright clip recorder (written once, reused for every clip)
+# -----------------------------------------------------------------------------
+cat > "${PW_DIR}/record-clip.mjs" <<'MJS'
+import { chromium } from 'playwright';
+
+const [url, outDir, w, h, secs, scrollY] = process.argv.slice(2);
+const width = Number(w), height = Number(h);
+
+const browser = await chromium.launch({
+  args: ['--no-sandbox', '--disable-dev-shm-usage', '--force-color-profile=srgb'],
+});
+const ctx = await browser.newContext({
+  viewport: { width, height },
+  recordVideo: { dir: outDir, size: { width, height } },
+  deviceScaleFactor: 1,
+});
+const page = await ctx.newPage();
+
+await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {});
+await page.waitForTimeout(3000); // settle; trimmed off by ffmpeg -ss
+
+if (Number(scrollY) > 0) {
+  await page.evaluate((y) => window.scrollTo(0, y), Number(scrollY));
+  await page.waitForTimeout(500);
+}
+
+await page.waitForTimeout(Number(secs) * 1000);
+
+const video = page.video();
+await ctx.close();          // video is only flushed on context close
+const out = await video.path();
+await browser.close();
+console.log(out);
+MJS
+
+# -----------------------------------------------------------------------------
+# Helpers
+# -----------------------------------------------------------------------------
+cluster_phase() {
+    curl -s "${BASE_URL}/api/cluster-state" \
+        | grep -o '"phase":"[^"]*"' | head -1 | cut -d'"' -f4
+}
 
 record_gif() {
-    local name="$1"
-    local viewport_w="$2"
-    local viewport_h="$3"
-    local record_secs="$4"
-    local scroll_y="${5:-0}"
-
-    local webm="/tmp/${name}.webm"
+    local name="$1" vw="$2" vh="$3" secs="$4" scroll_y="${5:-0}"
+    local work="/tmp/gifrec-${name}"
     local palette="/tmp/${name}-palette.png"
     local gif="${OUT_DIR}/${name}.gif"
 
-    echo
-    echo "=== Recording ${name}.gif (${viewport_w}x${viewport_h}, ${record_secs}s) ==="
+    rm -rf "${work}"; mkdir -p "${work}"
 
-    agent-browser open "$BASE_URL" >/dev/null 2>&1
-    agent-browser wait 2000 >/dev/null 2>&1
-    agent-browser set viewport "$viewport_w" "$viewport_h" >/dev/null 2>&1
-    agent-browser wait 500 >/dev/null 2>&1
+    echo ""
+    echo "=== Recording ${name}.gif (${vw}x${vh}, ${secs}s) ==="
 
-    if [ "$scroll_y" != "0" ]; then
-        agent-browser eval "window.scrollTo(0, $scroll_y)" >/dev/null 2>&1
-        agent-browser wait 500 >/dev/null 2>&1
-    fi
-
-    # Wait for a fresh cycle to start (idle phase)
-    echo "  waiting for idle phase..."
-    for i in {1..120}; do
-        local phase=$(curl -s "$BASE_URL/api/cluster-state" | jq -r '.phase')
-        if [ "$phase" = "idle" ]; then
+    echo "  waiting for a fresh cycle (idle phase)..."
+    for i in $(seq 1 180); do
+        if [ "$(cluster_phase)" = "idle" ]; then
             echo "  idle phase reached after ${i}s"
             break
         fi
         sleep 1
     done
 
-    agent-browser record start "$webm" >/dev/null 2>&1
-    agent-browser wait "$((record_secs * 1000))" >/dev/null 2>&1
-    agent-browser record stop >/dev/null 2>&1
-    agent-browser wait 500 >/dev/null 2>&1
+    local webm
+    webm="$(cd "${PW_DIR}" && node record-clip.mjs "${BASE_URL}" "${work}" "${vw}" "${vh}" "${secs}" "${scroll_y}")"
 
-    if [ ! -f "$webm" ]; then
-        echo "FAIL: $webm not created"
+    if [ ! -f "${webm}" ]; then
+        echo "FAIL: no video produced for ${name}"
         return 1
     fi
+    echo "  recorded: ${webm} ($(du -h "${webm}" | cut -f1))"
 
-    local webm_size=$(du -h "$webm" | cut -f1)
-    echo "  recorded: $webm (${webm_size})"
+    local gif_w=$(( vw > 1024 ? 1024 : vw ))
 
-    local gif_w=$((viewport_w > 1024 ? 1024 : viewport_w))
     echo "  pass 1: palette..."
-    ffmpeg -y -i "$webm" \
+    ffmpeg -y -loglevel error -ss 3 -i "${webm}" \
         -vf "fps=10,scale=${gif_w}:-1:flags=lanczos,palettegen=stats_mode=diff" \
-        "$palette" 2>&1 | tail -2
+        "${palette}"
 
     echo "  pass 2: gif encoding..."
-    ffmpeg -y -i "$webm" -i "$palette" \
+    ffmpeg -y -loglevel error -ss 3 -i "${webm}" -i "${palette}" \
         -lavfi "fps=10,scale=${gif_w}:-1:flags=lanczos [x]; [x][1:v] paletteuse=dither=bayer:bayer_scale=5" \
-        "$gif" 2>&1 | tail -2
+        "${gif}"
 
-    local gif_size=$(du -h "$gif" | cut -f1)
-    echo "  GIF: $gif ($gif_size)"
+    rm -rf "${work}" "${palette}"
+    echo "  GIF: ${gif} ($(du -h "${gif}" | cut -f1))"
 }
 
-# Record GIFs with timing that matches the real ~2min cycle
-record_gif "demo-1-pipeline"  1280 720 60 0
-record_gif "demo-2-k8sgpt"    1280 720 30 1200
-record_gif "demo-3-rollback"  1280 720 20 0
+# -----------------------------------------------------------------------------
+# Record — timings match the real ~3-4 min cycle
+# -----------------------------------------------------------------------------
+record_gif "demo-1-pipeline" 1280 720 60 0
+record_gif "demo-2-k8sgpt"   1280 720 30 1200
+record_gif "demo-3-rollback" 1280 720 20 0
 
-echo
-echo "=== All GIFs recorded from REAL cluster ==="
-ls -la "$OUT_DIR"
+echo ""
+echo "=== All GIFs recorded from the REAL cluster ==="
+ls -la "${OUT_DIR}"
