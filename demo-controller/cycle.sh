@@ -85,11 +85,20 @@ while true; do
             OOM_OCCURRED=true
             break
         fi
+        # The SLO analysis can abort the rollout before the canary reaches its
+        # memory limit. That is progressive delivery working as intended, not a
+        # timeout, so stop waiting and say which signal fired.
+        ABORT_PHASE=$(kubectl get rollout "$ROLLOUT" -n "$NS" -o jsonpath='{.status.phase}' 2>/dev/null || echo "")
+        if [ "$ABORT_PHASE" = "Degraded" ] || [ "$ABORT_PHASE" = "Aborted" ]; then
+            echo "  OK SLO analysis aborted the rollout after ~$((i*2))s - caught before the canary hit its memory limit"
+            OOM_OCCURRED=true
+            break
+        fi
         sleep 2
     done
 
     if [ "$OOM_OCCURRED" = false ]; then
-        echo "  ⚠ Timeout — OOMKilled not detected within 180s. Continuing anyway..."
+        echo "  ⚠ Neither an OOMKill nor an SLO abort was observed within 180s. Continuing anyway..."
     fi
 
     # Wait for Prometheus to scrape the error spike + AnalysisRun to fail

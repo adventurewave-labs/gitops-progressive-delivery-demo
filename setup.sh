@@ -255,8 +255,9 @@ echo "[8/8] Applying K8s manifests..."
 kubectl apply -f "${REPO_DIR}/manifests-repo/namespace.yaml"
 kubectl apply -f "${REPO_DIR}/manifests-repo/services.yaml"
 kubectl apply -f "${REPO_DIR}/manifests-repo/analysis-template.yaml"
-kubectl apply -f "${REPO_DIR}/manifests-repo/podmonitor.yaml"
+kubectl apply -f "${REPO_DIR}/manifests-repo/servicemonitor.yaml"
 kubectl apply -f "${REPO_DIR}/manifests-repo/rollout.yaml"
+kubectl apply -f "${REPO_DIR}/manifests-repo/loadgen.yaml"
 
 # Apply Argo CD Application (it watches the local manifests-repo)
 kubectl apply -f "${REPO_DIR}/manifests-repo/argocd-app.yaml"
