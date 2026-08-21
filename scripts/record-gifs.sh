@@ -45,22 +45,36 @@ echo "  cluster: OK"
 if ! command -v ffmpeg &>/dev/null; then
     echo "Installing ffmpeg..."
     ${SUDO} apt-get update -qq
-    ${SUDO} apt-get install -y -qq ffmpeg
+    ${SUDO} apt-get install -y -qq ffmpeg libnss3 libnspr4
 fi
 echo "  ffmpeg: $(ffmpeg -version | head -1 | cut -d' ' -f1-3)"
+
+# The devcontainer ships bun but not node/npm; support either runtime.
+if command -v npm &>/dev/null && command -v node &>/dev/null; then
+    JS_RUN="node"
+    PW_INSTALL_CMD=(npm install --silent --no-audit --no-fund)
+    PW_X=(npx --yes playwright)
+elif command -v bun &>/dev/null; then
+    JS_RUN="bun"
+    PW_INSTALL_CMD=(bun add)
+    PW_X=(bun x playwright)
+else
+    echo "FAIL: need node+npm or bun on PATH to run Playwright."
+    exit 1
+fi
+echo "  js runtime: ${JS_RUN}"
 
 if [ ! -d "${PW_DIR}/node_modules/playwright" ]; then
     echo "Installing Playwright ${PW_VERSION} into .playwright/ (first run only)..."
     mkdir -p "${PW_DIR}"
     ( cd "${PW_DIR}" \
-      && npm init -y >/dev/null 2>&1 \
-      && npm install --silent --no-audit --no-fund "playwright@${PW_VERSION}" >/dev/null )
+      && printf %s "{\"name\":\"gifs-recorder\",\"private\":true}" > package.json \
+      && "${PW_INSTALL_CMD[@]}" "playwright@${PW_VERSION}" >/dev/null )
 fi
 echo "  playwright: ${PW_VERSION}"
 
 echo "Ensuring Chromium is installed for Playwright..."
-( cd "${PW_DIR}" && ${SUDO} -E npx --yes playwright install-deps chromium >/dev/null 2>&1 || true )
-( cd "${PW_DIR}" && npx --yes playwright install chromium >/dev/null )
+( cd "${PW_DIR}" && "${PW_X[@]}" install chromium >/dev/null )
 
 # Demo controller
 if ! pgrep -f "demo-controller/cycle.sh" >/dev/null 2>&1; then
@@ -155,7 +169,7 @@ record_gif() {
     done
 
     local webm
-    webm="$(cd "${PW_DIR}" && node record-clip.mjs "${BASE_URL}" "${work}" "${vw}" "${vh}" "${secs}" "${scroll_y}")"
+    webm="$(cd "${PW_DIR}" && "${JS_RUN}" record-clip.mjs "${BASE_URL}" "${work}" "${vw}" "${vh}" "${secs}" "${scroll_y}")"
 
     if [ ! -f "${webm}" ]; then
         echo "FAIL: no video produced for ${name}"
