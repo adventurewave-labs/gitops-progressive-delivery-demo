@@ -2,7 +2,10 @@ name: showcase-pages
 
 # Publishes public/showcase/ (the GIFs + the last uat-test.sh results) to
 # GitHub Pages, so the showcase is readable without launching a Codespace.
-# The workflow enables Pages itself on first run (configure-pages enablement).
+# One-time repo setting required before the first run:
+#   Settings -> Pages -> Build and deployment -> Source: GitHub Actions
+# configure-pages' enablement:true does NOT work here - the workflow GITHUB_TOKEN
+# gets 'Resource not accessible by integration' on the create-pages-site API.
 
 on:
   push:
@@ -29,11 +32,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      # enablement:true turns Pages on via the API on first run, so a fork
-      # does not need anyone to visit Settings -> Pages by hand.
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: public/showcase
