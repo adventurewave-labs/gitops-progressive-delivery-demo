@@ -90,7 +90,10 @@ async function runRealAnalyzers(): Promise<Finding[]> {
         'argoproj.io', 'v1alpha1', NS, 'rollouts', 'payments-api',
       );
       const status = (rolloutRes.body as any)?.status ?? {};
-      const canary = status.canary ?? {};
+      // status.canary is {} unless the Rollout uses a traffic router, so the
+    // step comes from status.currentStepIndex and the weight from the spec.
+    const steps = ((rolloutRes.body as any)?.spec?.strategy?.canary?.steps ?? []) as any[];
+    const stepIndex = status.currentStepIndex as number | undefined;
 
       if (status.phase === 'Paused') {
         findings.push({
@@ -98,7 +101,13 @@ async function runRealAnalyzers(): Promise<Finding[]> {
           name: `${NS}/payments-api`,
           analyzer: 'rollout',
           severity: 'warning',
-          error: `Rollout payments-api is paused at step ${canary.currentStep ?? '?'} (Analysis) with canary weight ${canary.weight ?? 0}%`,
+          error: `Rollout payments-api is paused at step ${
+          typeof stepIndex === 'number' ? stepIndex + 1 : '?'
+        } of ${steps.length} (${
+          typeof stepIndex === 'number' && steps[stepIndex]
+            ? Object.keys(steps[stepIndex])[0]
+            : 'unknown step'
+        })`,
           suggestedFix: `kubectl argo rollouts get rollout payments-api -n ${NS}`,
         });
       }

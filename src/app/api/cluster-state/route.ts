@@ -55,15 +55,28 @@ function podToInfo(pod: any): PodInfo {
 function rolloutToInfo(rollout: any): RolloutInfo {
   const s = rollout?.status ?? {};
   const canary = s.canary ?? {};
+  // status.canary is {} on a basic canary Rollout - Argo Rollouts only fills it
+  // for traffic-routed strategies. The live weight is therefore the setWeight of
+  // the most recent weighted step, not anything published in status.
+  const steps = (rollout?.spec?.strategy?.canary?.steps ?? []) as Array<Record<string, unknown>>;
+  const stepIndex = s.currentStepIndex as number | undefined;
+  const hasCanary = Boolean(s.currentPodHash) && s.currentPodHash !== s.stableRS;
+  let canaryWeight = 0;
+  if (hasCanary && typeof stepIndex === 'number') {
+    for (let i = Math.min(stepIndex, steps.length) - 1; i >= 0; i--) {
+      const w = steps[i]?.setWeight;
+      if (typeof w === 'number') { canaryWeight = w; break; }
+    }
+  }
   return {
     name: rollout?.metadata?.name ?? 'payments-api',
     namespace: rollout?.metadata?.namespace ?? NS,
     phase: s.phase ?? 'Unknown',
     message: s.message ?? '',
-    canaryWeight: canary.weight ?? 0,
-    stableWeight: canary.stableWeight ?? 100,
-    currentStep: canary.currentStep ?? -1,
-    stepsCompleted: canary.stepsCompleted ?? 0,
+    canaryWeight,
+    stableWeight: 100 - canaryWeight,
+    currentStep: typeof s.currentStepIndex === 'number' ? s.currentStepIndex : -1,
+    stepsCompleted: typeof s.currentStepIndex === 'number' ? s.currentStepIndex : 0,
     stableRS: s.stableRS ?? '',
     // Argo Rollouts exposes the current pod-template hash as status.currentPodHash; status.currentRS does not exist in the API
     currentRS: s.currentPodHash ?? s.currentRS ?? '',

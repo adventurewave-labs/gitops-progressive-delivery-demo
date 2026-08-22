@@ -1,48 +1,64 @@
 #!/usr/bin/env bash
-# Captures REAL responses from the running cluster.
-# Requires: k3s running, demo cycling, Next.js dev server on :3000.
-set -euo pipefail
-BASE_URL="http://localhost:3000"
-OUT_DIR="/home/z/my-project/scripts/showcase-assets"
+# Captures REAL responses from the running stack into showcase-assets/.
+# The blocks in public/showcase/index.html are meant to be pasted from here,
+# so they never drift back into invented output.
+#
+# Requires: bash setup.sh + bash dev-real.sh (and ideally cycle.sh) running.
+set -uo pipefail
+
+if [ -n "${KUBECONFIG:-}" ] && [ ! -f "${KUBECONFIG}" ]; then unset KUBECONFIG; fi
+
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+BASE_URL="${BASE_URL:-http://localhost:3000}"
+OUT_DIR="${OUT_DIR:-${REPO_DIR}/showcase-assets}"
 mkdir -p "$OUT_DIR"
 
-echo "=== Capturing real backend responses ==="
-
-if ! curl -sf -o /dev/null "$BASE_URL/" 2>/dev/null; then
-    echo "FAIL: server not reachable at $BASE_URL"
+if ! curl -fsS -o /dev/null --max-time 5 "$BASE_URL/"; then
+    echo "FAIL: dashboard not reachable at $BASE_URL (run: bash dev-real.sh)" >&2
     exit 1
 fi
 
-# 1. Real K8s pod list (proxied to real kube-api)
-echo "  -> /api/k8s/api/v1/namespaces/payment-prod/pods"
-curl -s "$BASE_URL/api/k8s/api/v1/namespaces/payment-prod/pods" \
-    | jq . > "$OUT_DIR/k8s-pods.json"
+get() { # get <name> <path>
+    printf '  -> %-22s ' "$2"
+    if curl -fsS --max-time 15 "$BASE_URL$2" | python3 -m json.tool > "$OUT_DIR/$1.json" 2>/dev/null; then
+        echo "$(wc -c < "$OUT_DIR/$1.json") bytes"
+    else
+        echo "FAILED"; rm -f "$OUT_DIR/$1.json"
+    fi
+}
 
-# 2. Real analyzer output (queries real cluster)
-echo "  -> /api/analyze"
-curl -s "$BASE_URL/api/analyze" \
-    | jq . > "$OUT_DIR/analyze.json"
+echo "=== Capturing real backend responses ==="
+get k8s-pods     "/api/k8s/api/v1/namespaces/payment-prod/pods"
+get analyze      "/api/analyze"
+get cluster-state "/api/cluster-state"
+get prometheus   "/api/prometheus?query=up"
 
-# 3. Real GLM-4.5 LLM diagnosis (uses real findings from #2)
-echo "  -> /api/explain (real GLM-4.5 call)"
-curl -s -X POST "$BASE_URL/api/explain" \
-    -H "Content-Type: application/json" \
-    -d "$(cat "$OUT_DIR/analyze.json" | jq '.results | map({kind, name, analyzer, severity, error, suggestedFix})')" \
-    | jq . > "$OUT_DIR/explain.json"
-
-# 4. Real Prometheus query (proxied to real Prometheus)
-echo "  -> /api/prometheus?query=...&range=1"
-curl -s "$BASE_URL/api/prometheus?query=rate(http_requests_total%7Bservice%3D%22payments-api-canary%22%2Ccode%3D~%225..%22%7D)%5B2m%5D)%2Frate(http_requests_total%7Bservice%3D%22payments-api-canary%22%7D)%5B2m%5D)*100&range=1" \
-    | jq . > "$OUT_DIR/prometheus.json"
-
-# 5. Real cluster state
-echo "  -> /api/cluster-state"
-curl -s "$BASE_URL/api/cluster-state" \
-    | jq . > "$OUT_DIR/cluster-state.json"
+printf '  -> %-22s ' "/api/explain"
+if [ -z "${ZAI_API_KEY:-}" ]; then
+    echo "SKIPPED (no ZAI_API_KEY - the LLM section stays illustrative)"
+else
+    curl -fsS --max-time 60 -X POST "$BASE_URL/api/explain" \
+        -H 'content-type: application/json' \
+        --data "$(python3 -c 'import json,sys;print(json.dumps(json.load(open(sys.argv[1]))))' "$OUT_DIR/analyze.json" 2>/dev/null || echo '[]')" \
+        | python3 -m json.tool > "$OUT_DIR/explain.json" 2>/dev/null \
+        && echo "$(wc -c < "$OUT_DIR/explain.json") bytes" || echo "FAILED"
+fi
 
 echo
-echo "=== Saved to $OUT_DIR ==="
+echo "=== Analyzer summary (paste-ready facts) ==="
+python3 - "$OUT_DIR/analyze.json" <<'PY' 2>/dev/null || echo "  (no analyze.json)"
+import json,sys
+d=json.load(open(sys.argv[1]))
+res=d.get("results") or []
+print("  status   :", d.get("status"))
+print("  problems :", d.get("problems", len(res)))
+print("  kinds    :", ", ".join(sorted({r.get("kind","?") for r in res})) or "none")
+for r in res[:6]:
+    errs=r.get("error") or []
+    txt=errs[0].get("Text") if errs and isinstance(errs[0],dict) else ""
+    print(f"    - {r.get('kind')}/{r.get('name')}: {txt[:88]}")
+PY
+
+echo
+echo "Wrote: ${OUT_DIR#"$REPO_DIR"/}"
 ls -la "$OUT_DIR"
-echo
-echo "=== LLM diagnosis preview ==="
-jq -r '.content' "$OUT_DIR/explain.json" | head -15
