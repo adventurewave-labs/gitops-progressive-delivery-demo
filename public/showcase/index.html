@@ -468,7 +468,7 @@
   <!-- STATS -->
   <div class="stats">
     <div class="stat"><div class="num">5</div><div class="lbl">Real backend endpoints</div></div>
-    <div class="stat"><div class="num">9</div><div class="lbl">Real K8s issues found</div></div>
+    <div class="stat"><div class="num">7</div><div class="lbl">Rule-based analyzers</div></div>
     <div class="stat"><div class="num" id="uat-stat">--</div><div class="lbl">live checks pass</div></div>
     <div class="stat"><div class="num">GLM-4.5</div><div class="lbl">Real LLM diagnosis</div></div>
   </div>
@@ -523,39 +523,34 @@
   <!-- REAL K8SGPT OUTPUT -->
   <section>
     <h2><span class="num">02</span>Real cluster analyzer output</h2>
-    <p class="subtitle">Captured verbatim from <code>GET /api/analyze</code>. Rule-based analyzers modelled on the k8sgpt approach — no LLM involved at this stage. Findings come from live cluster state.</p>
+    <p class="subtitle">The response shape from <code>GET /api/analyze</code>, with one real finding. Rule-based analyzers modelled on the k8sgpt approach — no LLM involved at this stage. Findings come from live cluster state.</p>
 
     <div class="term">
       <div class="head">
         <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
-        <span>analyzer — payment-prod — 5 analyzers</span>
+        <span>analyzer &mdash; payment-prod &mdash; 7 analyzers</span>
       </div>
-<pre><span class="prompt">$</span> <span class="cmd">GET /api/analyze   # in-app analyzers, not the k8sgpt CLI</span>
-<span class="dim">INFO: activating analyzers: pod, deployment, service, ingress, pvc, node, rollout, log
-INFO: connecting to kube-apiserver (https://kubernetes.default.svc)
-INFO: 14 analyzers registered, 8 relevant to namespace payment-prod
-INFO: scan complete in 126ms — <span class="err">9 problems detected</span></span>
+<pre><span class="prompt">$</span> <span class="cmd">curl -s localhost:3000/api/analyze | python3 -m json.tool</span>
+<span class="dim">analyzers: pod, deployment, service, rollout, pvc, node, log
+source: live cluster via KUBECONFIG - findings depend on what the cluster
+is doing when you call it, so run scripts/capture-assets.sh for your own.</span>
 
 {
   <span class="k">"provider"</span>: <span class="s">""</span>,
   <span class="k">"status"</span>: <span class="s">"ProblemDetected"</span>,
-  <span class="k">"problems"</span>: <span class="n">9</span>,
+  <span class="k">"problems"</span>: <span class="n">1</span>,
+  <span class="k">"analyzers"</span>: [<span class="s">"pod"</span>, <span class="s">"deployment"</span>, <span class="s">"service"</span>, <span class="s">"rollout"</span>, <span class="s">"pvc"</span>, <span class="s">"node"</span>, <span class="s">"log"</span>],
   <span class="k">"results"</span>: [
     {
-      <span class="k">"kind"</span>: <span class="s">"Pod"</span>,
-      <span class="k">"name"</span>: <span class="s">"payment-prod/payments-api-canary-6b8f4c-9a8bc"</span>,
-      <span class="k">"severity"</span>: <span class="s">"critical"</span>,
-      <span class="k">"error"</span>: [{ <span class="k">"Text"</span>: <span class="err">"the last termination reason is OOMKilled (exit code 137)"</span> }],
-      <span class="k">"suggestedFix"</span>: <span class="s">"kubectl logs payments-api-canary-6b8f4c-9a8bc -c api --previous"</span>
-    },
-    {
-      <span class="k">"kind"</span>: <span class="s">"Pod"</span>,
-      <span class="k">"name"</span>: <span class="s">"payment-prod/payments-api-canary-6b8f4c-9a8bc"</span>,
-      <span class="k">"severity"</span>: <span class="s">"critical"</span>,
-      <span class="k">"error"</span>: [{ <span class="k">"Text"</span>: <span class="err">"Pod payments-api-canary-6b8f4c-9a8bc is in CrashLoopBackOff (restarts: 6)"</span> }]
-    },
-    <span class="c">// ... 7 more findings (Deployment, Rollout paused, Pending PVC, Node DiskPressure, log analyzer)</span>
-  ]
+      <span class="k">"kind"</span>: <span class="s">"Rollout"</span>,
+      <span class="k">"name"</span>: <span class="s">"payment-prod/payments-api"</span>,
+      <span class="k">"analyzer"</span>: <span class="s">"rollout"</span>,
+      <span class="k">"severity"</span>: <span class="s">"warning"</span>,
+      <span class="k">"error"</span>: [{ <span class="k">"Text"</span>: <span class="err">"Rollout payments-api is paused at the analysis step"</span> }],
+      <span class="k">"suggestedFix"</span>: <span class="s">"kubectl argo rollouts get rollout payments-api -n payment-prod"</span>
+    }
+  ],
+  <span class="k">"timestamp"</span>: <span class="s">"2026-08-22T22:04:50.146Z"</span>
 }</pre>
     </div>
   </section>
@@ -563,13 +558,13 @@ INFO: scan complete in 126ms — <span class="err">9 problems detected</span></s
   <!-- REAL GLM-4.5 DIAGNOSIS (Slack-style RCA card) -->
   <section>
     <h2><span class="num">03</span>Real GLM-4.5 root-cause analysis</h2>
-    <p class="subtitle">Captured verbatim from <code>POST /api/explain</code>. Real LLM call via <code>z-ai-web-dev-sdk</code> against Z.AI's GLM-4.5 model. Rendered below in the Slack incident-card format an SRE bot would post.</p>
+    <p class="subtitle">The shape of a <code>POST /api/explain</code> response, rendered as an SRE incident card. That endpoint makes a real GLM-4.5 call via <code>z-ai-web-dev-sdk</code> and needs a <code>ZAI_API_KEY</code>; without one it returns an error rather than a diagnosis. <strong>The wording below is illustrative</strong> - the live model writes its own, grounded only in the analyzer findings.</p>
 
     <div class="rca-card">
       <div class="header">
         <span class="channel">#sre-incidents</span>
         <span class="app">payments-api → analyzer → GLM-4.5</span>
-        <span class="ts">2026-08-20 22:17 UTC · model=glm-4.5 · cached=false</span>
+        <span class="ts">model=glm-4.5</span>
       </div>
 
       <h4>🔥 Root Cause</h4>
@@ -577,9 +572,9 @@ INFO: scan complete in 126ms — <span class="err">9 problems detected</span></s
 
       <h4>Evidence</h4>
       <ul>
-        <li>Pod <code>payments-api-canary-6b8f4c-9a8bc</code> was OOMKilled (exit code 137)</li>
-        <li>Container 'api' logs show heap growth from 245MB to 1.0GB before termination</li>
-        <li>Deployment <code>payments-api-canary</code> has 2 replicas but 0 are available</li>
+        <li>The canary ReplicaSet is not reaching ready replicas</li>
+        <li>The Rollout is paused at its analysis step</li>
+        <li>The <code>canary-error-rate</code> measurement is over its 1% threshold</li>
       </ul>
 
       <h4>Impact</h4>
@@ -587,20 +582,15 @@ INFO: scan complete in 126ms — <span class="err">9 problems detected</span></s
 
       <h4 class="fix">Recommended Action</h4>
       <ol>
-        <li><code>kubectl logs payments-api-canary-6b8f4c-9a8bc -c api --previous</code></li>
-        <li><code>kubectl logs payments-api-canary-6b8f4c-9a8bc -c api --previous | grep -i memory</code></li>
+        <li><code>kubectl logs payments-api-&lt;hash&gt; -c api --previous</code></li>
+        <li><code>kubectl logs payments-api-&lt;hash&gt; -c api --previous | grep -i memory</code></li>
         <li><code>kubectl argo rollouts promote payments-api -n payment-prod</code></li>
       </ol>
 
       <h4 class="diag">Diagnosis</h4>
       <p>The v2.4 canary pods are failing due to memory leaks causing heap growth beyond allocated limits, resulting in OOMKilled termination (exit code 137). The canary traffic split is exposing these memory issues under production load, while v2.3 remains healthy with proper memory management.</p>
 
-      <div style="margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 11px; color: var(--dim); display: flex; justify-content: space-between; align-items: center;">
-        <span>📊 <a href="#">prometheus.internal.acme.io/graph?g0.expr=sum(rate(http_requests_total...))</a></span>
-        <span>🔗 <a href="#">runbooks.internal.acme.io/payment-api-high-error-rate</a></span>
-        <span>📋 <a href="#">grafana.internal.acme.io/d/payment-api</a></span>
       </div>
-    </div>
   </section>
 
   <!-- ARCHITECTURE -->
@@ -621,16 +611,16 @@ INFO: scan complete in 126ms — <span class="err">9 problems detected</span></s
 │  │  /api/cluster-state  (route.ts)                                       │     │
 │  │   ├─ returns: phase, argoCdSync, argoRollouts, traffic, metrics,    │     │
 │  │   │            slo, pods, findings                                    │     │
-│  │   ├─ drives the 7-state pipeline on a 40s auto-loop                   │     │
-│  │   └─ pushes fresh metrics into the Prometheus ring buffer             │     │
+│  │   ├─ derives phase from Rollout status + pods + PromQL                   │     │
+│  │   └─ reads every field from the cluster per request               │         │
 │  └─────────────────────────────────────────────────────────────────────┘     │
 │     │                                                                         │
 │     ▼  fetch("/api/analyze")                                                  │
 │  ┌─────────────────────────────────────────────────────────────────────┐     │
 │  │  /api/analyze  (route.ts)                                            │     │
 │  │   ├─ reads from: live cluster via KUBECONFIG                            │     │
-│  │   ├─ runs 5 rule-based analyzers (pod, deployment, rollout, pvc,    │     │
-│  │   │   node, ingress, log, service) — no LLM                          │     │
+│  │   ├─ runs 7 rule-based analyzers (pod, deployment, service,    │          │
+│  │   │   rollout, pvc, node, log) — no LLM                              │     │
 │  │   └─ returns: findings derived from live cluster state                    │     │
 │  └─────────────────────────────────────────────────────────────────────┘     │
 │     │                                                                         │
@@ -677,7 +667,7 @@ INFO: scan complete in 126ms — <span class="err">9 problems detected</span></s
         <div class="ic a">A</div>
         <h3>Argo CD</h3>
         <div class="role">GitOps sync engine</div>
-        <p>Syncs the new Git commit <code>main@a1b2c3d</code> into the <code>payment-prod</code> namespace. The sync arrow pulses amber during the 3s apply window, then flips to emerald when manifests are committed to the cluster.</p>
+        <p>Watches <code>manifests-repo/</code> and syncs it into the <code>payment-prod</code> namespace. The card shows the Application's real revision, sync status and last operation message.</p>
         <div class="meta"><strong>API:</strong> <code>/api/cluster-state</code> → <code>argoCdSync</code></div>
       </div>
 
@@ -693,7 +683,7 @@ INFO: scan complete in 126ms — <span class="err">9 problems detected</span></s
         <div class="ic c">P</div>
         <h3>Prometheus</h3>
         <div class="role">SLO metrics</div>
-        <p>Scrapes <code>http_error_rate</code> and <code>http_request_duration_p99</code> for the canary pods. When the canary breaks, error rate spikes to 15.2% and p99 latency to 2042ms — both clearly visible in the live recharts.</p>
+        <p>Scrapes <code>http_error_rate</code> and <code>http_request_duration_p99</code> for the canary pods. When the canary breaks, both series move, and the AnalysisRun compares them against the 1% error-rate SLO in the AnalysisTemplate.</p>
         <div class="meta"><strong>API:</strong> <code>/api/prometheus?query=...</code></div>
       </div>
 
@@ -701,8 +691,8 @@ INFO: scan complete in 126ms — <span class="err">9 problems detected</span></s
         <div class="ic d">K</div>
         <h3>Cluster analyzer</h3>
         <div class="role">SRE agent (rule-based)</div>
-        <p>Runs 5 structured analyzers over live cluster state (Pod, Deployment, Rollout, PVC, Node). Returns findings in a k8sgpt-shaped JSON envelope — <strong>no LLM at this stage</strong>, just deterministic rule-based detection.</p>
-        <div class="meta"><strong>API:</strong> <code>/api/analyze</code> · 9 problems in 126ms</div>
+        <p>Runs 7 structured analyzers over live cluster state (Pod, Deployment, Service, Rollout, PVC, Node, log). Returns findings in a k8sgpt-shaped JSON envelope — <strong>no LLM at this stage</strong>, just deterministic rule-based detection.</p>
+        <div class="meta"><strong>API:</strong> <code>/api/analyze</code> · 7 analyzers, no LLM</div>
       </div>
 
       <div class="component">
