@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>GitOps Progressive Delivery Demo — Argo CD × Argo Rollouts × Prometheus × GLM-4.5</title>
-<meta name="description" content="LIVE DEMO · REAL KUBERNETES · REAL LLM. A working, end-to-end demonstration of an Argo CD + Argo Rollouts + Prometheus pipeline. The canary Deployment v2.4 is genuinely broken — its pods are OOMKilled — and a real GLM-4.5 LLM produces the root-cause analysis." />
+<meta name="description" content="LIVE DEMO. An end-to-end Argo CD + Argo Rollouts + Prometheus pipeline on a real k3s cluster. A broken canary breaches its SLO, Argo Rollouts aborts and rolls back, and GLM-4.5 writes the root-cause analysis from live cluster findings." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -444,17 +444,13 @@
     </h1>
     <p class="lead">
       A working, end-to-end demonstration of an Argo CD + Argo Rollouts + Prometheus pipeline.
-      The canary Deployment <code>v2.4</code> is genuinely broken — its pods are <strong>OOMKilled</strong>,
-      the Rollout is paused at the analysis step — and a real <strong>GLM-4.5</strong> LLM produces the
-      root-cause analysis. No mocks, no screenshots, no pre-baked scripts.
+      The canary <code>v2.4</code> leaks memory until it either gets OOMKilled or burns its error-rate SLO &mdash; whichever trips first &mdash; and Argo Rollouts aborts the release on its own. A real <strong>GLM-4.5</strong> call writes the root-cause analysis from the analyzer findings. No mocks, no screenshots, no pre-baked scripts.
     </p>
     <div class="badges">
       <img alt="CI" src="https://github.com/adventurewave-labs/gitops-progressive-delivery-demo/actions/workflows/ci.yml/badge.svg" />
       <img alt="License" src="https://img.shields.io/badge/license-MIT-blue.svg" />
-      <img alt="UAT" src="https://img.shields.io/badge/UAT-28%2F28-brightgreen" />
       <img alt="LLM" src="https://img.shields.io/badge/LLM-GLM--4.5-purple" />
       <img alt="Next.js" src="https://img.shields.io/badge/Next.js-16-black" />
-      <img alt="Docker" src="https://img.shields.io/badge/Docker-standalone-2496ed" />
     </div>
     <div class="cta-row">
       <a class="primary" href="https://github.com/adventurewave-labs/gitops-progressive-delivery-demo">
@@ -473,7 +469,7 @@
   <div class="stats">
     <div class="stat"><div class="num">5</div><div class="lbl">Real backend endpoints</div></div>
     <div class="stat"><div class="num">9</div><div class="lbl">Real K8s issues found</div></div>
-    <div class="stat"><div class="num">28/28</div><div class="lbl">UAT tests pass</div></div>
+    <div class="stat"><div class="num" id="uat-stat">--</div><div class="lbl">live checks pass</div></div>
     <div class="stat"><div class="num">GLM-4.5</div><div class="lbl">Real LLM diagnosis</div></div>
   </div>
 
@@ -749,6 +745,8 @@ INFO: scan complete in 126ms — <span class="err">9 problems detected</span></s
             if (!r.ok) return;
             const d = await r.json();
             document.getElementById('uat-score').textContent = d.passed;
+            const stat = document.getElementById('uat-stat');
+            if (stat) stat.textContent = d.passed + '/' + d.total;
             document.getElementById('uat-total').textContent = '/ ' + d.total;
             document.getElementById('uat-generated').textContent = 'last run: ' + d.generated;
             document.getElementById('uat-rows').innerHTML = d.results.map(t =>
