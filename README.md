@@ -1,134 +1,99 @@
 # gitops-progressive-delivery-demo
 
-> **REAL KUBERNETES · REAL ARGO CD · REAL ARGO ROLLOUTS · REAL PROMETHEUS · REAL LLM.**
-> A genuine end-to-end GitOps progressive delivery pipeline running in a real k3s cluster.
-> The canary Deployment v2.4 is genuinely broken — its pods are real OOMKilled by the
-> kernel, the Rollout is genuinely paused by a real AnalysisRun, real Prometheus
-> scrapes real error spikes — and a real GLM-4.5 LLM produces the root-cause
-> analysis. Zero mock data. Zero hardcoded state machines.
+A GitOps progressive-delivery pipeline that actually runs: real k3s, real Argo CD,
+real Argo Rollouts, real Prometheus, and a real LLM call for the root-cause write-up.
+A deliberately broken canary gets promoted, breaches its SLO, and is rolled back by
+the Argo Rollouts controller — no scripted state machine, no fixture data. Every
+number on the dashboard is read back out of the cluster at request time.
 
 ![CI](https://github.com/adventurewave-labs/gitops-progressive-delivery-demo/actions/workflows/ci.yml/badge.svg)
+![Pages](https://github.com/adventurewave-labs/gitops-progressive-delivery-demo/actions/workflows/pages.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![LLM](https://img.shields.io/badge/LLM-GLM--4.5-purple)
 ![Next.js](https://img.shields.io/badge/Next.js-16-black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
-![Docker](https://img.shields.io/badge/Docker-standalone-2496ed)
 ![k3s](https://img.shields.io/badge/k3s-real_cluster-FFC72C)
 
-[![Open in Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/adventurewave-labs/gitops-progressive-delivery-demo?quick_start=1)
+**[Watch it run →](https://adventurewave-labs.github.io/gitops-progressive-delivery-demo/)**
+&nbsp;·&nbsp;
+[![Open in Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/adventurewave-labs/gitops-progressive-delivery-demo?quickstart=1)
 
 ---
 
-## What's Real
+## What it looks like
+
+The full canary cycle — Argo CD sync, traffic shift, Prometheus SLO burn, abort, rollback:
+
+![Pipeline walkthrough](public/showcase/demo-1-pipeline.gif)
+
+The analyzer and the GLM-4.5 root-cause response:
+
+![Analyzer and LLM diagnosis](public/showcase/demo-2-diagnosis.gif)
+
+The rollback itself:
+
+![Rollback](public/showcase/demo-3-rollback.gif)
+
+These are screen recordings of the running system, captured by
+`scripts/record-gifs.sh` driving the live dashboard with Playwright. Nothing in
+them is staged.
+
+---
+
+## What's real
 
 | Component | What it actually does |
 |-----------|----------------------|
-| **k3s cluster** | Real single-node Kubernetes running inside the Codespace. Real kube-apiserver, real scheduler, real kubelet. |
-| **Argo CD** | Real Argo CD (Helm chart) watching the `manifests-repo/` directory. Shows real sync status. |
-| **Argo Rollouts** | Real Rollout CRD with real canary steps (20% → 50% → Analysis). The controller genuinely manages pod scaling and weight. |
-| **Prometheus** | Real Prometheus (kube-prometheus-stack) scraping `/metrics` from pods every 5s. Real PromQL responses. |
-| **payments-api:v2.3** | Real Go HTTP server (stable, healthy). Serves `/api/payments` with 0.1% error rate. |
-| **payments-api:v2.4** | Real Go HTTP server with an **intentional memory leak**. Allocates 10MB every 5s until the kernel OOMKills it (exit code 137). |
-| **Cluster analyzer** | Queries the **real kube-apiserver** for pod states. Detects real OOMKilled, real CrashLoopBackOff, real Rollout pause. |
-| **GLM-4.5 LLM** | Real network call to Z.AI's GLM-4.5 via `z-ai-web-dev-sdk`. Produces root-cause analysis from real cluster findings. |
-| **Dashboard** | Next.js app polls `/api/cluster-state` which derives phase from **real Rollout status + real pod states + real Prometheus metrics**. |
+| **k3s cluster** | Single-node Kubernetes in Docker (k3d). Real kube-apiserver, scheduler, kubelet. |
+| **Argo CD** | Real Argo CD (Helm) watching `manifests-repo/`. `selfHeal` is off so the demo controller can drive the canary imperatively. |
+| **Argo Rollouts** | Real Rollout CRD, real canary steps (20% → pause → 50% → Analysis → 100%). The controller does the scaling, weighting and aborting. |
+| **Prometheus** | kube-prometheus-stack scraping both Services every 5s through a ServiceMonitor. Real PromQL. |
+| **payments-api:v2.3** | Go HTTP server, stdlib only, exposing real Prometheus text-format metrics including a cumulative latency histogram. |
+| **payments-api:v2.4** | Same server plus a goroutine leaking 10MB every 5s. Against the `128Mi` limit the kernel OOMKills it in roughly a minute. |
+| **Cluster analyzer** | `/api/analyze` runs 5 rule-based analyzers (Pod, Deployment, Rollout, PVC, Node) over live cluster state. No LLM at this stage. |
+| **GLM-4.5** | `/api/explain` makes a real network call to Z.AI, grounded only in the analyzer's findings. |
+| **Dashboard** | Polls `/api/cluster-state`, which derives everything from live Rollout status, live pod specs and live Prometheus queries. |
 
 ---
 
-## Quick Start (Codespaces — one click)
+## Run it
 
-[![Open in Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/adventurewave-labs/gitops-progressive-delivery-demo?quick_start=1)
+### Codespaces
 
-The Codespace auto-runs `setup.sh` which installs k3s, Argo CD, Argo Rollouts, Prometheus, builds both app images, and applies all manifests.
+[![Open in Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/adventurewave-labs/gitops-progressive-delivery-demo?quickstart=1)
 
-Then:
+The devcontainer gives you Docker-in-Docker, Node 22, kubectl, Helm and bun. It does
+**not** bootstrap the cluster for you — that is the first command below.
 
-```bash
-# Terminal 1: Start the dashboard (connected to real cluster)
-bun run dev:real
+You need the 4-core / 16GB machine type. On 2 cores the cluster comes up but
+Playwright recording will not.
 
-# Terminal 2: Start the auto-cycling demo controller
-bun run demo
-
-# Open http://localhost:3000
-```
-
-## Quick Start (Local Machine)
+### Either way, three terminals
 
 ```bash
-git clone https://github.com/adventurewave-labs/gitops-progressive-delivery-demo.git
-cd gitops-progressive-delivery-demo
+# 1. Bootstrap: k3d cluster, Argo CD, Argo Rollouts, Prometheus,
+#    build both Go images, apply the manifests. Idempotent.
+bash setup.sh          # or: bun run setup
 
-# 1. Bootstrap the cluster (k3s + Argo CD + Rollouts + Prometheus + images)
-bash setup.sh
+# 2. Dashboard against the real cluster
+bash dev-real.sh       # or: bun run dev:real
 
-# 2. Start the dashboard
-bash dev-real.sh
-
-# 3. In another terminal, start the demo controller
-bash demo-controller/cycle.sh
-
-# Open http://localhost:3000
+# 3. Demo controller — promotes the canary, waits for the abort, rolls back, repeats
+bash demo-controller/cycle.sh    # or: bun run demo
 ```
 
-## The Real Pipeline
+Then open <http://localhost:3000>. One cycle takes about 3–4 minutes and ends with
+`CYCLE COMPLETE` in terminal 3.
 
-```
-Canary deployed → Rollout steps: 20% → 50% → AnalysisRun
-      ↓
-v2.4 memory leak goroutine starts (10MB/5s)
-      ↓
-Kernel OOMKills canary pods (exit code 137, REAL)
-      ↓
-Pods enter CrashLoopBackOff (REAL kubelet behavior)
-      ↓
-Prometheus scrapes error rate spike (REAL /metrics endpoint)
-      ↓
-AnalysisRun queries Prometheus → error > 1% → FAIL (REAL)
-      ↓
-Argo Rollouts aborts the Rollout (REAL controller decision)
-      ↓
-Canary pods scaled to 0, traffic back to 100% stable (REAL)
-      ↓
-Dashboard shows the entire chain derived from real K8s API calls
-```
+`/api/explain` needs a `ZAI_API_KEY` (see `.env.example`). Without one, every other
+panel still works and the LLM card surfaces the error instead of inventing a
+diagnosis.
 
-## Architecture
+---
 
-```
-┌──────────────────────────────────────────────────────┐
-│  k3s Cluster (real)                                  │
-│                                                      │
-│  ┌──────────────┐  ┌──────────────┐                  │
-│  │  Argo CD     │  │  Argo        │                  │
-│  │  (real)      │  │  Rollouts    │                  │
-│  └──────────────┘  └──────┬───────┘                  │
-│                          │                           │
-│  ┌───────────────────────┴────────────────────────┐  │
-│  │  payment-prod namespace                        │  │
-│  │  ┌──────────────┐  ┌─────────────────────┐   │  │
-│  │  │ v2.3 (4 pods)│  │ v2.4 (OOMKilled!)  │   │  │
-│  │  │ :8080/metrics│  │ :8080/metrics      │   │  │
-│  │  └──────────────┘  └─────────────────────┘   │  │
-│  └───────────────────────────────────────────────┘  │
-│  ┌──────────────┐                                   │
-│  │  Prometheus   │  ← scrapes real /metrics         │
-│  └──────────────┘                                   │
-└──────────────────────────────────────────────────────┘
+## How the canary actually breaks
 
-┌──────────────────────────────────────────────────────┐
-│  Next.js Dashboard (port 3000)                       │
-│  /api/cluster-state → real kube-api + Prometheus     │
-│  /api/prometheus     → proxy to real Prometheus      │
-│  /api/k8s/...        → proxy to real kube-apiserver  │
-│  /api/analyze        → queries real cluster state     │
-│  /api/explain        → GLM-4.5 (real LLM call)       │
-└──────────────────────────────────────────────────────┘
-```
-
-## How the Canary Actually Breaks
-
-`payments-app/canary/main.go` contains:
+`payments-app/canary/main.go`:
 
 ```go
 func startMemoryLeak() {
@@ -142,37 +107,98 @@ func startMemoryLeak() {
 }
 ```
 
-With a `256Mi` memory limit, the kernel OOMKills the process after ~2 minutes.
-This is not simulated. The Linux kernel genuinely sends SIGKILL.
+`/healthz` deliberately keeps returning 200, so the container dies from the kernel's
+OOM killer rather than a liveness restart.
 
-## UAT
+Two independent things can then abort the rollout, and either is a legitimate
+outcome:
+
+- the canary pods get OOMKilled (exit 137) and stop serving, or
+- the `canary-error-rate` metric crosses the 1% SLO and the AnalysisRun fails
+  three times, past its `failureLimit` of 2.
+
+Which one trips first depends on how fast the leak wins the race against the
+analysis interval. The observed abort in the last verified run was the error-rate
+path, with no OOMKill inside the 180s window. The demo does not pretend otherwise —
+`cycle.sh` reports what actually happened.
+
+---
+
+## The pipeline
+
+```
+demo controller sets the canary image
+      ↓
+Argo Rollouts: 20% → pause 15s → 50% → AnalysisRun
+      ↓
+v2.4 leaks memory; Prometheus scrapes both Services every 5s
+      ↓
+AnalysisRun queries Prometheus: error rate > 1%  →  measurement Failed
+      ↓
+3 failures > failureLimit 2  →  controller aborts the Rollout
+      ↓
+canary scaled to 0, 100% of traffic back on stable
+      ↓
+dashboard reflects each transition from live API reads
+```
+
+## Architecture
+
+```
+k3d cluster
+├── argocd/       Argo CD          → watches manifests-repo/
+├── argo-rollouts/ Rollouts controller
+├── monitoring/   kube-prometheus-stack
+└── payment-prod/
+    ├── Rollout payments-api (4 replicas, 128Mi limit)
+    ├── Service payments-api-stable   ─┐
+    ├── Service payments-api-canary   ─┤ ServiceMonitor scrapes both
+    ├── AnalysisTemplate prometheus-slo
+    └── Deployment payments-loadgen (drives traffic at both Services)
+
+Next.js dashboard (:3000)
+├── /api/cluster-state  live Rollout + pods + Prometheus  → the whole UI
+├── /api/prometheus     PromQL proxy
+├── /api/k8s/...        read-only kube-apiserver proxy (client-cert auth from kubeconfig)
+├── /api/analyze        5 rule-based analyzers, no LLM
+└── /api/explain        GLM-4.5, grounded in those findings
+```
+
+---
+
+## Verification
 
 ```bash
 bash scripts/uat-test.sh
-# Tests real K8s API, real Prometheus, real LLM, real cluster state
 ```
 
-## Recording Demo GIFs
+17 checks against the running stack — k3d nodes, Argo CD sync state, Rollout phase
+and stable hash, both Services, the AnalysisTemplate, the ServiceMonitor, Prometheus
+targets and series, and all five app routes. It prints a pass/fail table, writes
+`public/showcase/uat-results.json`, and exits non-zero if anything fails. The
+showcase page renders that file, so it can never claim more than the last real run.
+
+## Recording the GIFs
 
 ```bash
-# Make sure cluster + controller + dashboard are running, then:
+# with the cluster, dashboard and controller all running:
 bash scripts/record-gifs.sh
 ```
 
-The GIFs are screen-recordings of the real system operating.
+Self-installs Playwright and ffmpeg into a gitignored `.playwright/`, waits for a
+fresh cycle, records the live dashboard, and encodes to GIF.
 
-## Tech Stack
+## Tech stack
 
-| Layer        | Choice                                   |
-|--------------|------------------------------------------|
-| Cluster      | k3s (real Kubernetes)                     |
-| GitOps       | Argo CD (Helm)                           |
-| Delivery     | Argo Rollouts (real canary steps)        |
-| Monitoring   | Prometheus (kube-prometheus-stack)       |
-| App          | Go 1.22 (stable + canary with memory leak) |
-| Framework    | Next.js 16 (App Router)                  |
-| LLM          | GLM-4.5 via `z-ai-web-dev-sdk`           |
-| Container    | Docker (multi-stage, alpine)             |
+| Layer      | Choice |
+|------------|--------|
+| Cluster    | k3d / k3s |
+| GitOps     | Argo CD (Helm) |
+| Delivery   | Argo Rollouts |
+| Monitoring | kube-prometheus-stack |
+| App        | Go 1.22, stdlib only |
+| Framework  | Next.js 16 (App Router) |
+| LLM        | GLM-4.5 via `z-ai-web-dev-sdk` |
 
 ## License
 

@@ -460,7 +460,7 @@
       <a class="primary" href="https://github.com/adventurewave-labs/gitops-progressive-delivery-demo">
         ▶ Get the code
       </a>
-      <a class="secondary" href="https://codespaces.new/adventurewave-labs/gitops-progressive-delivery-demo?quick_start=1">
+      <a class="secondary" href="https://codespaces.new/adventurewave-labs/gitops-progressive-delivery-demo?quickstart=1">
         ▲ Open in Codespaces
       </a>
     </div>
@@ -487,9 +487,9 @@
         <div class="title">Full pipeline walkthrough (26s)</div>
         <div class="tag live">RECORDED FROM LIVE APP</div>
       </div>
-      <img class="gif" src="/showcase/demo-1-pipeline.gif" alt="Pipeline walkthrough" />
+      <img class="gif" src="demo-1-pipeline.gif" alt="Pipeline walkthrough" />
       <div class="caption">
-        The full pipeline auto-loops every 40s. Every value on screen — traffic split, SLO badge,
+        One full cycle takes about 3-4 minutes and <code>cycle.sh</code> repeats it. Every value on screen — traffic split, SLO badge,
         pod phase, analyzer findings, LLM diagnosis — comes from a real HTTP call to a real backend
         endpoint. No client-side state machine hiding the work.
       </div>
@@ -500,7 +500,7 @@
         <div class="title">Analyzer terminal + real GLM-4.5 stream (14s)</div>
         <div class="tag llm">REAL LLM CALL</div>
       </div>
-      <img class="gif" src="/showcase/demo-2-diagnosis.gif" alt="Analyzer terminal stream" />
+      <img class="gif" src="demo-2-diagnosis.gif" alt="Analyzer terminal stream" />
       <div class="caption">
         The terminal calls <code>GET /api/analyze</code> then <code>POST /api/explain</code>, fetching real
         analyzer findings, then makes a real GLM-4.5 call via the
@@ -515,7 +515,7 @@
         <div class="title">Rollout abort + traffic revert (10s)</div>
         <div class="tag live">ARGO ROLLOUTS</div>
       </div>
-      <img class="gif" src="/showcase/demo-3-rollback.gif" alt="Rollback transition" />
+      <img class="gif" src="demo-3-rollback.gif" alt="Rollback transition" />
       <div class="caption">
         After the LLM diagnosis completes, the pipeline triggers an automated rollback. Argo Rollouts
         shifts 100% of traffic back to the stable ReplicaSet, the canary ReplicaSet scales to 0, and
@@ -762,35 +762,43 @@ INFO: scan complete in 126ms — <span class="err">9 problems detected</span></s
     </section>
 
     <section id="quickstart">
-    <h2><span class="num">07</span>Three ways to run it</h2>
-    <p class="subtitle">Pick your poison — Codespaces for instant cloud, local for full dev, Docker for the containerized version.</p>
+      <h2><span class="num">07</span>Run it yourself</h2>
+      <p class="subtitle">Two environments, the same three commands. Nothing auto-starts &mdash;
+      you bring the cluster up, then the dashboard, then the controller.</p>
 
-    <div class="components">
-      <div class="component">
-        <div class="ic a">▲</div>
-        <h3>GitHub Codespaces</h3>
-        <div class="role">zero install · 2 min</div>
-        <p>Click "Open in Codespaces" on the repo. The <code>.devcontainer/devcontainer.json</code> auto-installs Bun + Node 20, runs <code>bun install</code>, and forwards port 3000. Pipeline auto-starts on page load.</p>
-        <div class="meta"><strong>Link:</strong> <a href="https://codespaces.new/adventurewave-labs/gitops-progressive-delivery-demo?quick_start=1">codespaces.new/…</a></div>
-      </div>
+      <div class="components">
+        <div class="component">
+          <div class="ic a">&#9650;</div>
+          <h3>GitHub Codespaces</h3>
+          <div class="role">4-core / 16GB &middot; ~5 min to first cycle</div>
+          <p>The devcontainer provides Docker-in-Docker, Node 22, kubectl, Helm and bun, and
+          runs <code>bun install</code>. It does <strong>not</strong> bootstrap the cluster &mdash;
+          that is <code>setup.sh</code>, below. The 2-core machine type will run the cluster but
+          not the Playwright recording.</p>
+          <div class="meta"><strong>Link:</strong> <a href="https://codespaces.new/adventurewave-labs/gitops-progressive-delivery-demo?quickstart=1">codespaces.new/&hellip;</a></div>
+        </div>
 
-      <div class="component">
-        <div class="ic c">$</div>
-        <h3>Local dev</h3>
-        <div class="role">bun + dev server</div>
-        <p>Clone the repo, <code>bun install</code>, <code>bun run dev</code>. The pipeline auto-loops every 40s — every backend endpoint is reachable on <code>localhost:3000</code>.</p>
-        <div class="meta"><strong>Run:</strong> <code>bun run dev</code></div>
-      </div>
+        <div class="component">
+          <div class="ic c">$</div>
+          <h3>Local machine</h3>
+          <div class="role">Docker &middot; 4 CPU &middot; 8GB</div>
+          <p>Clone the repo and run the same three commands in three terminals. k3d builds the
+          k3s cluster inside Docker; <code>setup.sh</code> is idempotent, so re-running it against
+          an existing cluster is cheap.</p>
+          <div class="meta"><strong>Run:</strong> <code>bash setup.sh</code> &rarr; <code>bash dev-real.sh</code> &rarr; <code>bash demo-controller/cycle.sh</code></div>
+        </div>
 
-      <div class="component">
-        <div class="ic b">🐳</div>
-        <h3>Docker</h3>
-        <div class="role">standalone · node:20-alpine</div>
-        <p>Multi-stage Dockerfile builds the Next.js standalone output and serves it via <code>node server.js</code> on port 3000 as a non-root user. Includes a HEALTHCHECK.</p>
-        <div class="meta"><strong>Run:</strong> <code>docker compose up --build</code></div>
+        <div class="component">
+          <div class="ic b">&#10003;</div>
+          <h3>Check the claims</h3>
+          <div class="role">17 live checks</div>
+          <p>Every assertion on this page is re-checkable. The script queries the cluster, Argo CD,
+          Argo Rollouts, Prometheus and all five app routes, writes <code>uat-results.json</code>
+          (the table in section 06), and exits non-zero if anything fails.</p>
+          <div class="meta"><strong>Run:</strong> <code>bash scripts/uat-test.sh</code></div>
+        </div>
       </div>
-    </div>
-  </section>
+    </section>
 
 </div>
 
