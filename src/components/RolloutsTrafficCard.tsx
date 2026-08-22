@@ -17,7 +17,10 @@ export function RolloutsTrafficCard({ state, traffic, phase, pods }: Props) {
   const isPaused = state.phase === "Paused";
 
   return (
+    // scripts/record-gifs.sh scrolls to this card by selector; a pixel
+    // offset silently no-ops while the page is still the loading spinner.
     <div
+      data-demo="rollouts"
       className={`rounded-xl border bg-zinc-900/70 p-5 backdrop-blur transition-colors ${
         isAnomaly
           ? "border-red-500/70"

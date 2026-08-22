@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>GitOps Progressive Delivery Demo — Argo CD × Argo Rollouts × Prometheus × GLM-4.5</title>
-<meta name="description" content="LIVE DEMO. An end-to-end Argo CD + Argo Rollouts + Prometheus pipeline on a real k3s cluster. A broken canary breaches its SLO, Argo Rollouts aborts and rolls back, and GLM-4.5 writes the root-cause analysis from live cluster findings." />
+<meta name="description" content="A recorded run of an end-to-end Argo CD + Argo Rollouts + Prometheus pipeline on a real k3s cluster. A broken canary breaches its SLO, Argo Rollouts aborts and rolls back, and GLM-4.5 writes the root-cause analysis from live cluster findings." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -437,14 +437,14 @@
 <!-- HERO -->
 <header class="hero">
   <div class="container">
-    <div class="tag">★ LIVE DEMO · REAL KUBERNETES · REAL LLM</div>
+    <div class="tag">★ RECORDED RUN · REAL KUBERNETES · REAL LLM</div>
     <h1>
       GitOps Progressive Delivery,<br />
       <span class="accent">diagnosed by AI.</span>
     </h1>
     <p class="lead">
       A working, end-to-end demonstration of an Argo CD + Argo Rollouts + Prometheus pipeline.
-      The canary <code>v2.4</code> leaks memory until it either gets OOMKilled or burns its error-rate SLO &mdash; whichever trips first &mdash; and Argo Rollouts aborts the release on its own. A real <strong>GLM-4.5</strong> call writes the root-cause analysis from the analyzer findings. No mocks, no screenshots, no pre-baked scripts.
+      The canary <code>v2.4</code> leaks memory until it either gets OOMKilled or burns its error-rate SLO &mdash; whichever trips first &mdash; and Argo Rollouts aborts the release on its own. A real <strong>GLM-4.5</strong> call writes the root-cause analysis from the analyzer findings. This page is a recording of that pipeline running &mdash; the pipeline itself is not mocked and the abort is not scripted.
     </p>
     <div class="badges">
       <img alt="CI" src="https://github.com/adventurewave-labs/gitops-progressive-delivery-demo/actions/workflows/ci.yml/badge.svg" />

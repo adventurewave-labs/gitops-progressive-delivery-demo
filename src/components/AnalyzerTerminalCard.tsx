@@ -134,7 +134,10 @@ export function AnalyzerTerminalCard({ phase, findings }: Props) {
   const done = phase === "rollback";
 
   return (
+    // scripts/record-gifs.sh scrolls to this card by selector; a pixel
+    // offset silently no-ops while the page is still the loading spinner.
     <div
+      data-demo="analyzer"
       className={`rounded-xl border bg-zinc-900/70 backdrop-blur transition-colors ${
         active
           ? "border-amber-500/50"
