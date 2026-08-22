@@ -384,7 +384,7 @@ function CodeBlock({
                   : "text-zinc-400"
             }
           >
-            {line || "\\u00A0"}
+            {line || " "}
           </div>
         ))}
       </pre>
