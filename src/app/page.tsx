@@ -209,7 +209,13 @@ function MainGrid({ state }: { state: ClusterState }) {
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-5">
       <div className="flex flex-col gap-4 lg:gap-5">
-        <ArgoSyncCard state={state.argoCdSync} phase={state.phase} />
+        <ArgoSyncCard
+            state={state.argoCdSync}
+            phase={state.phase}
+            stableImage={state.argoRollouts.stableImage}
+            canaryImage={state.argoRollouts.canaryImage}
+            replicas={state.pods.stable.desired}
+          />
         <RolloutsTrafficCard
           state={state.argoRollouts}
           traffic={state.traffic}

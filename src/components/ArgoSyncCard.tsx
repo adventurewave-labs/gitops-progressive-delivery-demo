@@ -14,9 +14,13 @@ import type { ClusterState } from "@/hooks/use-cluster-state";
 interface Props {
   state: ClusterState["argoCdSync"];
   phase: ClusterState["phase"];
+  /** Live image refs from the Rollout - never hardcode these. */
+  stableImage: string;
+  canaryImage: string;
+  replicas: number;
 }
 
-export function ArgoSyncCard({ state, phase }: Props) {
+export function ArgoSyncCard({ state, phase, stableImage, canaryImage, replicas }: Props) {
   const isSyncing = phase === "syncing";
   const isReverted = phase === "rollback";
 
@@ -126,7 +130,7 @@ export function ArgoSyncCard({ state, phase }: Props) {
           <div className="mt-1.5 font-mono text-[11px] text-zinc-500">
             image:{" "}
             <span className={isReverted ? "text-emerald-300" : "text-amber-300"}>
-              {isReverted ? "payments:v2.3" : "payments:v2.4"}
+              {isReverted ? stableImage : canaryImage}
             </span>
           </div>
           <a
@@ -146,9 +150,9 @@ export function ArgoSyncCard({ state, phase }: Props) {
           argocd app diff (manifest)
         </div>
         <pre className="overflow-x-auto font-mono text-[11px] leading-relaxed text-zinc-400">
-{`- image: payments:v2.3   # stable
-+ image: payments:v2.4   # canary
-  replicas: 4
+{`- image: ${stableImage}   # stable
++ image: ${canaryImage}   # canary
+  replicas: ${replicas}
   strategy: canary
     steps:
     - setWeight: 20

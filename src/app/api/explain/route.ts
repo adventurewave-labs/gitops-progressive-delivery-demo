@@ -41,7 +41,8 @@ function buildPrompt(findings: AnalyzeFinding[]): string {
     2,
   );
 
-  return `You are an AI SRE analyzing the Kubernetes namespace "payment-prod". Argo Rollouts has paused a canary deployment of payments-api v2.4 at step 3 (Analysis) because Prometheus detected the canary pods are failing SLOs.
+  return `You are an AI SRE analyzing the Kubernetes namespace "payment-prod". Argo Rollouts is running a canary deployment of payments-api there, gated by a
+Prometheus-backed AnalysisTemplate.
 
 A cluster analyzer found ${findings.length} real issues in that namespace.
 
@@ -65,7 +66,8 @@ Recommended Action:
 2. <step 2>
 3. <step 3>
 
-Diagnosis: <2-3 sentence technical explanation of why v2.4 is failing where v2.3 was healthy, specifically referencing memory limits, the OOMKilled exit code 137, and the canary traffic split>
+Diagnosis: <2-3 sentence technical explanation grounded ONLY in the findings above -
+do not assert a failure mode the findings do not show>
 
 Be concise. Do not include any text before "Root Cause:" or after the Diagnosis. Use kubectl commands verbatim where possible. Reference specific pod names, deployment names, and exit codes from the findings.`;
 }
