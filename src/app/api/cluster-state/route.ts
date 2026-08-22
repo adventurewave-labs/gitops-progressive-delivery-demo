@@ -212,6 +212,7 @@ export async function GET() {
 
     // 1. Fetch Rollout CRD
     let rollout: RolloutInfo;
+    let rolloutUnreadable = false;
     try {
       const res = await customObjects.getNamespacedCustomObject(
         'argoproj.io', 'v1alpha1', NS, 'rollouts', 'payments-api'
@@ -219,6 +220,7 @@ export async function GET() {
       rollout = rolloutToInfo(res.body);
     } catch {
       // Fallback if CRD not available
+      rolloutUnreadable = true;
       rollout = {
         name: 'payments-api', namespace: NS, phase: 'Unknown', message: '',
         canaryWeight: 0, stableWeight: 100, currentStep: -1, stepsCompleted: 0,
@@ -229,6 +231,7 @@ export async function GET() {
 
     // 2. Fetch pods
     let pods: PodInfo[] = [];
+    let podsUnreadable = false;
     const imageByHash: Record<string, string> = {};
     try {
       const res = await coreV1.listNamespacedPod(NS, undefined, undefined, undefined, undefined, 'app=payments-api');
@@ -240,7 +243,20 @@ export async function GET() {
         if (h && img) imageByHash[h] = img;
       }
     } catch {
-      // Continue with empty pods
+      podsUnreadable = true;
+    }
+
+    // Both primary reads failed: there is no reachable cluster. Falling through
+    // to the defaults would render a green "Synced" / "SLO healthy" dashboard
+    // for a cluster that does not exist, so fail loudly instead.
+    if (rolloutUnreadable && podsUnreadable) {
+      return NextResponse.json(
+        {
+          error:
+            'cannot reach a Kubernetes API - this dashboard reads a live cluster via KUBECONFIG on the same host',
+        },
+        { status: 503 }
+      );
     }
 
     // 3. Fetch Deployments

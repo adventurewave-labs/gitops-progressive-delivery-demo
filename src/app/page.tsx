@@ -68,7 +68,9 @@ export default function Home() {
     <main className="min-h-screen overflow-x-hidden bg-zinc-950 bg-grid text-zinc-100">
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
         <Header state={state} />
-        {error && (
+        {/* When there is no state at all, NoCluster already explains it - showing
+            the red API banner too just repeats the same line twice. */}
+        {error && state && (
           <div className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">
             ⚠ cluster-state API error: <code className="font-mono">{error}</code>
           </div>
@@ -97,12 +99,21 @@ export default function Home() {
 function Header({ state }: { state: ClusterState | null }) {
   const phase = state?.phase ?? "idle";
   const busy = phase !== "idle" && phase !== "rollback";
+  // Without a cluster behind it the "LIVE DEMO" claim is false, so the header
+  // has to say what this actually is instead of asserting it is live.
+  const connected = state !== null;
 
   return (
     <header className="mb-6 flex flex-col gap-4 lg:mb-8 lg:flex-row lg:items-center lg:justify-between">
       <div>
         <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-zinc-500">
-          <span className="inline-flex h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+          <span
+            className={
+              connected
+                ? "inline-flex h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400"
+                : "inline-flex h-1.5 w-1.5 rounded-full bg-zinc-600"
+            }
+          />
           adventurewave-labs
           <ChevronRight className="h-3 w-3 text-zinc-700" />
           <span className="text-zinc-400">gitops-progressive-delivery-demo</span>
@@ -111,10 +122,22 @@ function Header({ state }: { state: ClusterState | null }) {
           AI-Driven Progressive Delivery &amp; Incident Response
         </h1>
         <p className="mt-1 max-w-2xl text-sm text-zinc-400">
-          <span className="font-semibold text-emerald-400">LIVE DEMO · REAL KUBERNETES · REAL LLM.</span>{" "}
-          Argo CD syncs a new release, Argo Rollouts shifts canary traffic, Prometheus detects an
-          SLO burn, and GLM-4.5 diagnoses + auto-rolls back — all driven by a real k3s cluster, real Prometheus
-          scrapes, and real GLM-4.5 calls.
+          {connected ? (
+            <>
+              <span className="font-semibold text-emerald-400">
+                LIVE DEMO · REAL KUBERNETES · REAL LLM.
+              </span>{" "}
+              Argo CD syncs a new release, Argo Rollouts shifts canary traffic, Prometheus detects an
+              SLO burn, and GLM-4.5 diagnoses + auto-rolls back — all driven by a real k3s cluster,
+              real Prometheus scrapes, and real GLM-4.5 calls.
+            </>
+          ) : (
+            <>
+              <span className="font-semibold text-zinc-300">NOT CONNECTED TO A CLUSTER.</span>{" "}
+              Every panel below reads live Argo CD, Argo Rollouts, Prometheus and kube-apiserver
+              state — nothing is mocked, so there is nothing to show until a cluster is running.
+            </>
+          )}
         </p>
       </div>
 
@@ -361,7 +384,7 @@ function CodeBlock({
                   : "text-zinc-400"
             }
           >
-            {line || "\u00A0"}
+            {line || "\\u00A0"}
           </div>
         ))}
       </pre>

@@ -86,7 +86,15 @@ export function useClusterState(intervalMs = 1000) {
     async function fetchOnce() {
       try {
         const res = await fetch("/api/cluster-state", { cache: "no-store" });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+          // The route answers 503 with a human-readable reason when no cluster
+          // is reachable; prefer that over a bare status code.
+          const detail = await res
+            .json()
+            .then((b: { error?: string }) => b?.error)
+            .catch(() => undefined);
+          throw new Error(detail ? `HTTP ${res.status} - ${detail}` : `HTTP ${res.status}`);
+        }
         const data = (await res.json()) as ClusterState;
         if (!cancelled) {
           setState(data);
