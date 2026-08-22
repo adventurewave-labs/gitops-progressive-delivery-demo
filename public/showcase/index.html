@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>GitOps Progressive Delivery Demo — Argo CD × Argo Rollouts × Prometheus × K8sGPT × GLM-4.5</title>
-<meta name="description" content="LIVE DEMO · REAL KUBERNETES · REAL LLM. A working, end-to-end demonstration of an Argo CD + Argo Rollouts + Prometheus + K8sGPT pipeline. The canary Deployment v2.4 is genuinely broken — its pods are OOMKilled — and a real GLM-4.5 LLM produces the root-cause analysis." />
+<title>GitOps Progressive Delivery Demo — Argo CD × Argo Rollouts × Prometheus × GLM-4.5</title>
+<meta name="description" content="LIVE DEMO · REAL KUBERNETES · REAL LLM. A working, end-to-end demonstration of an Argo CD + Argo Rollouts + Prometheus pipeline. The canary Deployment v2.4 is genuinely broken — its pods are OOMKilled — and a real GLM-4.5 LLM produces the root-cause analysis." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -443,7 +443,7 @@
       <span class="accent">diagnosed by AI.</span>
     </h1>
     <p class="lead">
-      A working, end-to-end demonstration of an Argo CD + Argo Rollouts + Prometheus + K8sGPT pipeline.
+      A working, end-to-end demonstration of an Argo CD + Argo Rollouts + Prometheus pipeline.
       The canary Deployment <code>v2.4</code> is genuinely broken — its pods are <strong>OOMKilled</strong>,
       the Rollout is paused at the analysis step — and a real <strong>GLM-4.5</strong> LLM produces the
       root-cause analysis. No mocks, no screenshots, no pre-baked scripts.
@@ -480,7 +480,7 @@
   <!-- 30-SECOND DEMO -->
   <section id="demos">
     <h2><span class="num">01</span>30-second cinematic demo</h2>
-    <p class="subtitle">Watch the agentic loop fire end-to-end: Argo CD syncs → Argo Rollouts shifts canary traffic → Prometheus SLO burns → K8sGPT analyzes → GLM-4.5 diagnoses → auto-rollback.</p>
+    <p class="subtitle">Watch the agentic loop fire end-to-end: Argo CD syncs → Argo Rollouts shifts canary traffic → Prometheus SLO burns → analyzers run → GLM-4.5 diagnoses → auto-rollback.</p>
 
     <div class="demo">
       <div class="head">
@@ -497,12 +497,12 @@
 
     <div class="demo">
       <div class="head">
-        <div class="title">K8sGPT terminal + real GLM-4.5 stream (14s)</div>
+        <div class="title">Analyzer terminal + real GLM-4.5 stream (14s)</div>
         <div class="tag llm">REAL LLM CALL</div>
       </div>
-      <img class="gif" src="/showcase/demo-2-k8sgpt.gif" alt="K8sGPT terminal stream" />
+      <img class="gif" src="/showcase/demo-2-diagnosis.gif" alt="Analyzer terminal stream" />
       <div class="caption">
-        The terminal runs <code>k8sgpt analyze --explain --output json</code>, fetches real
+        The terminal calls <code>GET /api/analyze</code> then <code>POST /api/explain</code>, fetching real
         analyzer findings, then makes a real GLM-4.5 call via the
         <code>z-ai-web-dev-sdk</code>. The LLM's structured response — <em>Root Cause</em>,
         <em>Evidence</em>, <em>Impact</em>, <em>Recommended Action</em>, <em>Diagnosis</em> —
@@ -526,15 +526,15 @@
 
   <!-- REAL K8SGPT OUTPUT -->
   <section>
-    <h2><span class="num">02</span>Real k8sgpt analyzer output</h2>
-    <p class="subtitle">Captured verbatim from <code>GET /api/analyze</code>. Rule-based analyzers mirroring k8sgpt's Go code — no LLM involved at this stage. 9 real problems found in &lt;200ms.</p>
+    <h2><span class="num">02</span>Real cluster analyzer output</h2>
+    <p class="subtitle">Captured verbatim from <code>GET /api/analyze</code>. Rule-based analyzers modelled on the k8sgpt approach — no LLM involved at this stage. Findings come from live cluster state.</p>
 
     <div class="term">
       <div class="head">
         <div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
-        <span>k8sgpt analyze — payment-prod — 14 analyzers</span>
+        <span>analyzer — payment-prod — 5 analyzers</span>
       </div>
-<pre><span class="prompt">$</span> <span class="cmd">k8sgpt analyze --namespace payment-prod --output json</span>
+<pre><span class="prompt">$</span> <span class="cmd">GET /api/analyze   # in-app analyzers, not the k8sgpt CLI</span>
 <span class="dim">INFO: activating analyzers: pod, deployment, service, ingress, pvc, node, rollout, log
 INFO: connecting to kube-apiserver (https://kubernetes.default.svc)
 INFO: 14 analyzers registered, 8 relevant to namespace payment-prod
@@ -567,12 +567,12 @@ INFO: scan complete in 126ms — <span class="err">9 problems detected</span></s
   <!-- REAL GLM-4.5 DIAGNOSIS (Slack-style RCA card) -->
   <section>
     <h2><span class="num">03</span>Real GLM-4.5 root-cause analysis</h2>
-    <p class="subtitle">Captured verbatim from <code>POST /api/explain</code>. Real LLM call via <code>z-ai-web-dev-sdk</code> against Z.AI's GLM-4.5 model. Rendered below in the Slack incident-card format that K8sGPT would actually post.</p>
+    <p class="subtitle">Captured verbatim from <code>POST /api/explain</code>. Real LLM call via <code>z-ai-web-dev-sdk</code> against Z.AI's GLM-4.5 model. Rendered below in the Slack incident-card format an SRE bot would post.</p>
 
     <div class="rca-card">
       <div class="header">
         <span class="channel">#sre-incidents</span>
-        <span class="app">Robusta → K8sGPT → GLM-4.5</span>
+        <span class="app">payments-api → analyzer → GLM-4.5</span>
         <span class="ts">2026-08-20 22:17 UTC · model=glm-4.5 · cached=false</span>
       </div>
 
@@ -632,10 +632,10 @@ INFO: scan complete in 126ms — <span class="err">9 problems detected</span></s
 │     ▼  fetch("/api/analyze")                                                  │
 │  ┌─────────────────────────────────────────────────────────────────────┐     │
 │  │  /api/analyze  (route.ts)                                            │     │
-│  │   ├─ reads from: src/lib/k8s-mock-data.ts                            │     │
-│  │   ├─ runs 8 rule-based analyzers (pod, deployment, rollout, pvc,    │     │
+│  │   ├─ reads from: live cluster via KUBECONFIG                            │     │
+│  │   ├─ runs 5 rule-based analyzers (pod, deployment, rollout, pvc,    │     │
 │  │   │   node, ingress, log, service) — no LLM                          │     │
-│  │   └─ returns: 9 real findings in k8sgpt JSON shape                    │     │
+│  │   └─ returns: findings derived from live cluster state                    │     │
 │  └─────────────────────────────────────────────────────────────────────┘     │
 │     │                                                                         │
 │     ▼  fetch("/api/explain", {method: POST, body: findings})                  │
@@ -660,12 +660,12 @@ INFO: scan complete in 126ms — <span class="err">9 problems detected</span></s
 │     │                                                                         │
 │     ▼  fetch("/api/k8s/api/v1/namespaces/payment-prod/pods")                 │
 │  ┌─────────────────────────────────────────────────────────────────────┐     │
-│  │  /api/k8s/[...path]  (route.ts)  — Mock kube-apiserver                │     │
+│  │  /api/k8s/[...path]  (route.ts)  — live kube-apiserver proxy                │     │
 │  │   ├─ returns standard K8s list envelopes (PodList, DeploymentList…)  │     │
-│  │   ├─ realistic 50-150ms latency                                      │     │
-│  │   └─ source: src/lib/k8s-mock-data.ts                                │     │
-│  │       (4 healthy stable pods + 2 canary CrashLoopBackOff +          │     │
-│  │        OOMKilled exit 137 + paused Rollout + Pending PVC + Node DP)  │     │
+│  │   ├─ auth + TLS taken from the kubeconfig                                      │     │
+│  │   └─ source: live cluster via KUBECONFIG                                │     │
+│  │       (whatever the cluster reports at request time -               │     │
+│  │        no fixtures, no canned bodies, no synthetic latency)          │     │
 │  └─────────────────────────────────────────────────────────────────────┘     │
 └──────────────────────────────────────────────────────────────────────────────┘</pre>
     </div>
@@ -674,7 +674,7 @@ INFO: scan complete in 126ms — <span class="err">9 problems detected</span></s
   <!-- COMPONENTS -->
   <section id="components">
     <h2><span class="num">05</span>The stack</h2>
-    <p class="subtitle">Five components, every one replaceable. Swap the mock kube-apiserver for a real one and everything else keeps working.</p>
+    <p class="subtitle">Five components, every one replaceable. Every one reads from the live cluster; nothing is stubbed.</p>
 
     <div class="components">
       <div class="component">
@@ -703,9 +703,9 @@ INFO: scan complete in 126ms — <span class="err">9 problems detected</span></s
 
       <div class="component">
         <div class="ic d">K</div>
-        <h3>K8sGPT</h3>
+        <h3>Cluster analyzer</h3>
         <div class="role">SRE agent (rule-based)</div>
-        <p>Runs 8 structured analyzers mirroring k8sgpt's Go code (Pod, Deployment, Rollout, PVC, Node, log). Returns 9 real findings in k8sgpt's JSON shape — <strong>no LLM at this stage</strong>, just deterministic rule-based detection.</p>
+        <p>Runs 5 structured analyzers over live cluster state (Pod, Deployment, Rollout, PVC, Node). Returns findings in a k8sgpt-shaped JSON envelope — <strong>no LLM at this stage</strong>, just deterministic rule-based detection.</p>
         <div class="meta"><strong>API:</strong> <code>/api/analyze</code> · 9 problems in 126ms</div>
       </div>
 
@@ -721,53 +721,47 @@ INFO: scan complete in 126ms — <span class="err">9 problems detected</span></s
 
   <!-- UAT -->
   <section id="uat">
-    <h2><span class="num">06</span>UAT — 28/28 pass</h2>
-    <p class="subtitle">Every layer of the stack is validated independently — mock K8s API, analyzer, real LLM, Prometheus, cluster-state, and UI end-to-end.</p>
+      <h2><span class="num">06</span>End-to-end verification</h2>
+      <p class="subtitle">Nothing on this page is asserted by hand. <code>scripts/uat-test.sh</code>
+      queries the live cluster, Argo CD, Argo Rollouts, Prometheus and every app route, then writes
+      its verdict to <code>uat-results.json</code>. The table below is that file, rendered.</p>
 
-    <div class="uat-summary">
-      <span class="score">28</span><span class="total">/ 28</span>
-      <div class="desc">Run them yourself: <code>bash scripts/uat-test.sh</code></div>
-    </div>
+      <div class="uat-summary">
+        <span class="score" id="uat-score">--</span><span class="total" id="uat-total">/ --</span>
+        <div class="desc">Run it yourself: <code>bash scripts/uat-test.sh</code></div>
+        <div class="desc" id="uat-generated"></div>
+      </div>
 
-    <table class="uat">
-      <thead>
-        <tr><th>ID</th><th>Layer</th><th>Test</th><th>Status</th><th>Detail</th></tr>
-      </thead>
-      <tbody>
-        <tr><td class="id">T01</td><td>Mock K8s</td><td>PodList returns 6 pods</td><td class="pass">✓ pass</td><td>4 stable + 2 canary</td></tr>
-        <tr><td class="id">T02</td><td>Mock K8s</td><td>Canary pod is CrashLoopBackOff</td><td class="pass">✓ pass</td><td>phase=CrashLoopBackOff</td></tr>
-        <tr><td class="id">T03</td><td>Mock K8s</td><td>Canary pod lastState is OOMKilled</td><td class="pass">✓ pass</td><td>exit code 137</td></tr>
-        <tr><td class="id">T04</td><td>Mock K8s</td><td>DeploymentList returns stable + canary</td><td class="pass">✓ pass</td><td>2 deployments</td></tr>
-        <tr><td class="id">T05</td><td>Mock K8s</td><td>Rollout is Paused at analysis step</td><td class="pass">✓ pass</td><td>phase=Paused</td></tr>
-        <tr><td class="id">T06</td><td>Analyzer</td><td>Detects ≥4 real problems (no LLM)</td><td class="pass">✓ pass</td><td>9 problems detected</td></tr>
-        <tr><td class="id">T07</td><td>Analyzer</td><td>status=ProblemDetected</td><td class="pass">✓ pass</td><td>k8sgpt JSON shape</td></tr>
-        <tr><td class="id">T08</td><td>Analyzer</td><td>Finds OOMKilled pod finding</td><td class="pass">✓ pass</td><td>kind=Pod</td></tr>
-        <tr><td class="id">T09</td><td>Analyzer</td><td>Finds Deployment availability finding</td><td class="pass">✓ pass</td><td>0/2 ready</td></tr>
-        <tr><td class="id">T10</td><td>GLM-4.5</td><td>Returns Root Cause: section</td><td class="pass">✓ pass</td><td>real LLM output</td></tr>
-        <tr><td class="id">T11</td><td>GLM-4.5</td><td>Returns Recommended Action: section</td><td class="pass">✓ pass</td><td>3 numbered steps</td></tr>
-        <tr><td class="id">T12</td><td>GLM-4.5</td><td>Cites kubectl commands in remediation</td><td class="pass">✓ pass</td><td>3 kubectl calls</td></tr>
-        <tr><td class="id">T13</td><td>GLM-4.5</td><td>model=glm-4.5 attribution</td><td class="pass">✓ pass</td><td>Z.AI SDK</td></tr>
-        <tr><td class="id">T14</td><td>GLM-4.5</td><td>Second call served from cache</td><td class="pass">✓ pass</td><td>cached=true</td></tr>
-        <tr><td class="id">T15</td><td>Prometheus</td><td>Returns status=success, resultType=matrix</td><td class="pass">✓ pass</td><td>v1/query shape</td></tr>
-        <tr><td class="id">T16</td><td>Prometheus</td><td>Returns ≥1 time series</td><td class="pass">✓ pass</td><td>30-point ring buffer</td></tr>
-        <tr><td class="id">T17</td><td>Cluster state</td><td>Valid phase enum</td><td class="pass">✓ pass</td><td>one of 7 phases</td></tr>
-        <tr><td class="id">T18</td><td>Cluster state</td><td>argoCdSync.revision present</td><td class="pass">✓ pass</td><td>a1b2c3d</td></tr>
-        <tr><td class="id">T19</td><td>Cluster state</td><td>traffic.stable+canary=100</td><td class="pass">✓ pass</td><td>invariant holds</td></tr>
-        <tr><td class="id">T20</td><td>UI</td><td>Page title correct</td><td class="pass">✓ pass</td><td>"GitOps Progressive…"</td></tr>
-        <tr><td class="id">T21</td><td>UI</td><td>All cards render</td><td class="pass">✓ pass</td><td>5/5 card labels</td></tr>
-        <tr><td class="id">T22</td><td>UI</td><td>Real GLM-4.5 Root Cause: visible in DOM</td><td class="pass">✓ pass</td><td>terminal stream</td></tr>
-        <tr><td class="id">T23</td><td>UI</td><td>Real LLM Evidence: section visible</td><td class="pass">✓ pass</td><td>terminal stream</td></tr>
-        <tr><td class="id">T24</td><td>UI</td><td>Real OOMKilled finding visible</td><td class="pass">✓ pass</td><td>from /api/analyze</td></tr>
-        <tr><td class="id">T25</td><td>UI</td><td>k8sgpt analyze command visible</td><td class="pass">✓ pass</td><td>terminal prompt</td></tr>
-        <tr><td class="id">T26</td><td>UI</td><td>glm-4.5 model attribution visible</td><td class="pass">✓ pass</td><td>footer</td></tr>
-        <tr><td class="id">T27</td><td>UI</td><td>375px viewport: no horizontal overflow</td><td class="pass">✓ pass</td><td>mobile responsive</td></tr>
-        <tr><td class="id">T28</td><td>UI</td><td>Pipeline auto-cycles (40s loop)</td><td class="pass">✓ pass</td><td>server-driven</td></tr>
-      </tbody>
-    </table>
-  </section>
+      <table class="uat">
+        <thead>
+          <tr><th>ID</th><th>Layer</th><th>Check</th><th>Status</th><th>Observed</th></tr>
+        </thead>
+        <tbody id="uat-rows">
+          <tr><td colspan="5">No run recorded yet &mdash; run <code>bash scripts/uat-test.sh</code>.</td></tr>
+        </tbody>
+      </table>
 
-  <!-- QUICKSTART -->
-  <section id="quickstart">
+      <script>
+        (async () => {
+          const esc = (v) => String(v ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+          try {
+            const r = await fetch('uat-results.json', { cache: 'no-store' });
+            if (!r.ok) return;
+            const d = await r.json();
+            document.getElementById('uat-score').textContent = d.passed;
+            document.getElementById('uat-total').textContent = '/ ' + d.total;
+            document.getElementById('uat-generated').textContent = 'last run: ' + d.generated;
+            document.getElementById('uat-rows').innerHTML = d.results.map(t =>
+              '<tr><td class="id">' + esc(t.id) + '</td><td>' + esc(t.layer) + '</td><td>' + esc(t.test) +
+              '</td><td class="' + (t.status === 'pass' ? 'pass' : 'fail') + '">' +
+              (t.status === 'pass' ? '\u2713 pass' : '\u2717 fail') + '</td><td>' + esc(t.detail) + '</td></tr>'
+            ).join('');
+          } catch { /* leave the empty-state row in place */ }
+        })();
+      </script>
+    </section>
+
+    <section id="quickstart">
     <h2><span class="num">07</span>Three ways to run it</h2>
     <p class="subtitle">Pick your poison — Codespaces for instant cloud, local for full dev, Docker for the containerized version.</p>
 
@@ -802,7 +796,7 @@ INFO: scan complete in 126ms — <span class="err">9 problems detected</span></s
 
 <footer>
   <div class="container">
-    Built with Next.js 16 · Argo CD · Argo Rollouts · Prometheus · K8sGPT · GLM-4.5 (Z.AI)<br />
+    Built with Next.js 16 · Argo CD · Argo Rollouts · Prometheus · GLM-4.5 (Z.AI)<br />
     <a href="https://github.com/adventurewave-labs/gitops-progressive-delivery-demo">github.com/adventurewave-labs/gitops-progressive-delivery-demo</a>
     · MIT License · © 2026 adventurewave-labs
   </div>

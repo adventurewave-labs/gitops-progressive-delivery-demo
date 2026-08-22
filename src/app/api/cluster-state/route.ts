@@ -65,7 +65,8 @@ function rolloutToInfo(rollout: any): RolloutInfo {
     currentStep: canary.currentStep ?? -1,
     stepsCompleted: canary.stepsCompleted ?? 0,
     stableRS: s.stableRS ?? '',
-    currentRS: s.currentRS ?? '',
+    // Argo Rollouts exposes the current pod-template hash as status.currentPodHash; status.currentRS does not exist in the API
+    currentRS: s.currentPodHash ?? s.currentRS ?? '',
     availableReplicas: s.availableReplicas ?? 0,
     readyReplicas: s.readyReplicas ?? 0,
     replicas: s.replicas ?? 0,
@@ -144,7 +145,6 @@ function runRealAnalyzers(pods: PodInfo[], rollout: RolloutInfo): Finding[] {
 
   for (const pod of pods) {
     // Determine if this is a canary pod by checking its template hash
-    const isCanary = pod.labels?.['rollouts-pod-template-hash'] === rollout.currentRS;
 
     for (const cs of pod.containerStatuses) {
       // OOMKilled detection
@@ -172,17 +172,6 @@ function runRealAnalyzers(pods: PodInfo[], rollout: RolloutInfo): Finding[] {
       }
     }
 
-    // Log-based finding for canary pods showing memory growth
-    if (isCanary && findings.some(f => f.kind === 'Pod' && f.name === `${pod.namespace}/${pod.name}`)) {
-      findings.push({
-        kind: 'Pod',
-        name: `${pod.namespace}/${pod.name}`,
-        analyzer: 'log',
-        severity: 'critical',
-        error: `Container 'api' logs show heap growth pattern consistent with memory leak before OOMKill`,
-        suggestedFix: `kubectl logs ${pod.name} -c api --previous | grep -i memory`,
-      });
-    }
   }
 
   // Rollout paused detection
@@ -227,9 +216,16 @@ export async function GET() {
 
     // 2. Fetch pods
     let pods: PodInfo[] = [];
+    const imageByHash: Record<string, string> = {};
     try {
-      const res = await coreV1.listNamespacedPod(NS, undefined, undefined, undefined, 'app=payments-api');
-      pods = (res.body.items ?? []).map(podToInfo);
+      const res = await coreV1.listNamespacedPod(NS, undefined, undefined, undefined, undefined, 'app=payments-api');
+      const items = res.body.items ?? [];
+      pods = items.map(podToInfo);
+      for (const p of items) {
+        const h = (p.metadata?.labels ?? {})['rollouts-pod-template-hash'];
+        const img = p.spec?.containers?.[0]?.image;
+        if (h && img) imageByHash[h] = img;
+      }
     } catch {
       // Continue with empty pods
     }
@@ -268,8 +264,8 @@ export async function GET() {
 
       canaryErrorRate = errRes.status === 'fulfilled' ? extractValue(errRes.value, 0) : 0;
       canaryP99 = p99Res.status === 'fulfilled' ? extractValue(p99Res.value, 0) : 0;
-      stableErrorRate = sErrRes.status === 'fulfilled' ? extractValue(sErrRes.value, 0.1) : 0.1;
-      stableP99 = sP99Res.status === 'fulfilled' ? extractValue(sP99Res.value, 150) : 150;
+      stableErrorRate = sErrRes.status === 'fulfilled' ? extractValue(sErrRes.value, 0) : 0;
+      stableP99 = sP99Res.status === 'fulfilled' ? extractValue(sP99Res.value, 0) : 0;
     } catch {
       // Prometheus not available yet
     }
@@ -285,7 +281,7 @@ export async function GET() {
       author: string; branch: string; repo: string; status: string; targetRevision: string;
     } = {
       revision: '', shortRevision: '', message: '',
-      author: '', branch: 'main', repo: 'adventurewave-labs/payments',
+      author: '', branch: 'main', repo: '',
       status: 'Unknown', targetRevision: '',
     };
     try {
@@ -297,10 +293,10 @@ export async function GET() {
       argoCdSync = {
         revision: sync.revision ?? '',
         shortRevision: (sync.revision ?? '').slice(0, 7),
-        message: 'Auto-sync from manifests-repo',
-        author: 'demo-controller',
+        message: appBody?.status?.operationState?.message ?? '',
+        author: appBody?.status?.operationState?.operation?.initiatedBy?.username ?? 'argocd',
         branch: 'main',
-        repo: appBody?.spec?.source?.repoURL ?? 'adventurewave-labs/payments',
+        repo: appBody?.spec?.source?.repoURL ?? '',
         status: sync.status ?? 'Unknown',
         targetRevision: appBody?.spec?.source?.targetRevision ?? '',
       };
@@ -309,8 +305,9 @@ export async function GET() {
     }
 
     // 7. Compute pod health
+    // Argo Rollouts keeps currentPodHash == stableRS when no canary is in flight; treat that as zero canary pods.
+    const canaryPods = rollout.currentRS && rollout.currentRS !== rollout.stableRS ? pods.filter(p => p.labels?.['rollouts-pod-template-hash'] === rollout.currentRS) : [];
     const stablePods = pods.filter(p => p.labels?.['rollouts-pod-template-hash'] === rollout.stableRS);
-    const canaryPods = pods.filter(p => p.labels?.['rollouts-pod-template-hash'] === rollout.currentRS);
     const stableReady = stablePods.filter(p => p.ready).length;
     const canaryReady = canaryPods.filter(p => p.ready).length;
 
@@ -334,8 +331,8 @@ export async function GET() {
       canaryWeight: rollout.canaryWeight,
       stableRS: rollout.stableRS,
       canaryRS: rollout.currentRS,
-      stableImage: deployments.find(d => d.name === 'payments-api-stable')?.image ?? 'payments:v2.3',
-      canaryImage: deployments.find(d => d.name === 'payments-api-canary')?.image ?? 'payments:v2.4',
+      stableImage: imageByHash[rollout.stableRS] ?? deployments.find(d => d.name === 'payments-api')?.image ?? '',
+      canaryImage: imageByHash[rollout.currentRS] ?? '',
     };
 
     return NextResponse.json({
@@ -354,12 +351,12 @@ export async function GET() {
         stable: {
           desired: rollout.replicas || stablePods.length,
           ready: stableReady,
-          image: 'payments:v2.3',
+          image: imageByHash[rollout.stableRS] ?? '',
         },
         canary: {
           desired: canaryPods.length > 0 ? canaryPods.length : 0,
           ready: canaryReady,
-          image: 'payments:v2.4',
+          image: imageByHash[rollout.currentRS] ?? '',
           phase: canaryPhase,
         },
       },

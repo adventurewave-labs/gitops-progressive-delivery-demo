@@ -1,14 +1,17 @@
 /**
- * Kube API proxy — REWRITTEN to forward requests to the REAL k3s apiserver.
+ * Read-only pass-through to the live kube-apiserver named by KUBECONFIG.
  *
  *   GET /api/k8s/api/v1/namespaces/payment-prod/pods
- *   GET /api/k8s/apis/apps/v1/namespaces/payment-prod/deployments
  *   GET /api/k8s/apis/argoproj.io/v1alpha1/namespaces/payment-prod/rollouts
  *
- * Returns the raw K8s JSON response unchanged.
+ * Returns the raw K8s JSON response unchanged, with the apiserver's status code.
+ * Auth comes from the kubeconfig itself (client cert for k3d/k3s, bearer token
+ * for in-cluster/SA kubeconfigs) via KubeConfig.applyToHTTPSOptions.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { getApiServer, loadConfig } from '@/lib/k8s-client';
+import https from 'node:https';
+import http from 'node:http';
+import { loadConfig } from '@/lib/k8s-client';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,58 +22,52 @@ export async function GET(
   const { path: pathSegments } = await params;
   const path = '/' + pathSegments.join('/');
 
-  let apiServer: string;
   try {
-    apiServer = getApiServer();
-  } catch {
-    return NextResponse.json(
-      { kind: 'Status', apiVersion: 'v1', code: 500, message: 'kubeconfig not loaded' },
-      { status: 500 },
+    const kc = loadConfig();
+    const server = kc.getCurrentCluster()?.server;
+    if (!server) throw new Error('no current cluster in kubeconfig');
+    const target = new URL(server + path);
+
+    // Pulls ca/cert/key or an Authorization header out of the kubeconfig.
+    const opts: https.RequestOptions & { headers: Record<string, string> } = { headers: {} };
+    await kc.applyToHTTPSOptions(opts);
+
+    const { status, body } = await new Promise<{ status: number; body: string }>(
+      (resolve, reject) => {
+        const mod = target.protocol === 'https:' ? https : http;
+        const req = mod.request(
+          {
+            ...opts,
+            hostname: target.hostname,
+            port: target.port,
+            path: target.pathname + target.search,
+            method: 'GET',
+            timeout: 10_000,
+          },
+          (res) => {
+            let data = '';
+            res.setEncoding('utf8');
+            res.on('data', (c) => (data += c));
+            res.on('end', () => resolve({ status: res.statusCode ?? 502, body: data }));
+          },
+        );
+        req.on('timeout', () => req.destroy(new Error('kube-apiserver request timed out')));
+        req.on('error', reject);
+        req.end();
+      },
     );
-  }
 
-  const targetUrl = `${apiServer}${path}`;
-
-  try {
-    // Load config to get the auth headers
-    loadConfig();
-    const kc = await import('@kubernetes/client-node').then(m => {
-      const config = new m.KubeConfig();
-      const kubeconfigPath = process.env.KUBECONFIG || '';
-      if (kubeconfigPath) config.loadFromFile(kubeconfigPath);
-      else config.loadFromDefault();
-      return config;
+    return new NextResponse(body, {
+      status,
+      headers: { 'content-type': 'application/json' },
     });
-
-    // Get auth headers from kubeconfig
-    const cluster = kc.getCurrentCluster();
-    const user = kc.getCurrentUser();
-    const headers: Record<string, string> = {};
-
-    if (user?.token) {
-      headers['Authorization'] = `Bearer ${user.token}`;
-    } else if (user?.certFile && user?.keyFile) {
-      // Client cert auth — can't easily forward through fetch, use token instead
-      // For k3s, the default service account token works
-    }
-
-    // For k3s, use the service account token if available, or try without auth
-    // (k3s API on localhost is often accessible without auth in dev)
-    const res = await fetch(targetUrl, {
-      headers,
-      // Bypass self-signed cert for k3s
-      // @ts-ignore
-      rejectUnauthorized: false,
-      // @ts-ignore
-      signal: AbortSignal.timeout(10000),
-    });
-
-    const data = await res.json();
-    return NextResponse.json(data);
   } catch (err) {
     return NextResponse.json(
       {
-        kind: 'Status', apiVersion: 'v1', code: 502,
+        kind: 'Status',
+        apiVersion: 'v1',
+        status: 'Failure',
+        code: 502,
         message: `kube-api proxy error: ${err instanceof Error ? err.message : String(err)}`,
       },
       { status: 502 },

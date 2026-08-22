@@ -16,7 +16,7 @@ interface TerminalLine {
   text: string;
 }
 
-export function K8sGPTTerminalCard({ phase, findings }: Props) {
+export function AnalyzerTerminalCard({ phase, findings }: Props) {
   const [lines, setLines] = useState<TerminalLine[]>([]);
   const [diagnosis, setDiagnosis] = useState<LlmDiagnosis | null>(null);
   const [diagnosing, setDiagnosing] = useState(false);
@@ -51,11 +51,10 @@ export function K8sGPTTerminalCard({ phase, findings }: Props) {
     setDiagnosis(null);
 
     const cmds: TerminalLine[] = [
-      { kind: "command", text: "$ k8sgpt analyze --namespace payment-prod --explain --output json" },
+      { kind: "command", text: "$ GET /api/analyze   # in-app analyzers, not the k8sgpt CLI" },
       { kind: "output", text: "" },
-      { kind: "output", text: "INFO: activating analyzers: pod, deployment, service, ingress, pvc, node, rollout, log" },
-      { kind: "output", text: "INFO: connecting to kube-apiserver (https://kubernetes.default.svc)" },
-      { kind: "output", text: "INFO: 14 analyzers registered, 8 relevant to namespace payment-prod" },
+      { kind: "output", text: "INFO: analyzers: pod, deployment, rollout, pvc, node" },
+      { kind: "output", text: "INFO: connecting to kube-apiserver via KUBECONFIG" },
       { kind: "output", text: "" },
     ];
 
@@ -73,7 +72,7 @@ export function K8sGPTTerminalCard({ phase, findings }: Props) {
 
       setLines((prev) => [
         ...prev,
-        { kind: "output", text: `INFO: analyzer complete — ${data.problems} problems detected in ${data.durationMs ?? 126}ms` },
+        { kind: "output", text: `INFO: analyzer complete — ${data.problems} problems detected` },
         { kind: "output", text: `INFO: routing ${data.problems} findings to LLM (glm-4.5 via z-ai-web-dev-sdk)` },
         { kind: "output", text: "" },
       ]);
@@ -94,7 +93,7 @@ export function K8sGPTTerminalCard({ phase, findings }: Props) {
       setLines((prev) => [
         ...prev,
         { kind: "output", text: "" },
-        { kind: "command", text: "$ k8sgpt explain --backend glm-4.5 --cache" },
+        { kind: "command", text: "$ POST /api/explain   # real glm-4.5 call, cached per finding-set" },
         { kind: "output", text: "" },
       ]);
 
@@ -153,7 +152,7 @@ export function K8sGPTTerminalCard({ phase, findings }: Props) {
         </div>
         <div className="ml-2 flex items-center gap-2 text-[11px] uppercase tracking-widest text-zinc-500">
           <TerminalIcon className="h-3 w-3" />
-          <span>k8sgpt — analyze — zsh — 100×24</span>
+          <span>cluster analyzer — glm-4.5 — 100×24</span>
         </div>
         <div className="ml-auto flex items-center gap-2">
           {diagnosing && (
@@ -184,7 +183,7 @@ export function K8sGPTTerminalCard({ phase, findings }: Props) {
       >
         {lines.length === 0 ? (
           <div className="text-zinc-600">
-            <span className="text-emerald-500">k8sgpt@production</span>
+            <span className="text-emerald-500">analyzer@payment-prod</span>
             <span className="text-zinc-500">:</span>
             <span className="text-blue-400">~</span>
             <span className="text-zinc-500">$ </span>
@@ -220,7 +219,7 @@ export function K8sGPTTerminalCard({ phase, findings }: Props) {
             backend: glm-4.5
           </span>
           <span className="text-zinc-700">·</span>
-          <span>analyzers: 14</span>
+          <span>analyzers: 5</span>
           <span className="text-zinc-700">·</span>
           <span>namespace: payment-prod</span>
         </div>
@@ -257,7 +256,7 @@ export function K8sGPTTerminalCard({ phase, findings }: Props) {
       {diagnosis && showJson && (
         <div className="border-t border-zinc-800 bg-zinc-950/90 p-3">
           <div className="mb-1.5 text-[10px] uppercase tracking-widest text-zinc-500">
-            k8sgpt analyze --output json — structured result
+            /api/analyze — structured result
           </div>
           <pre className="terminal-scroll max-h-48 overflow-auto font-mono text-[10px] leading-relaxed text-zinc-400">
 {JSON.stringify(

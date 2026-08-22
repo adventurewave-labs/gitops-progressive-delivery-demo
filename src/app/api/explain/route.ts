@@ -41,9 +41,9 @@ function buildPrompt(findings: AnalyzeFinding[]): string {
     2,
   );
 
-  return `You are K8sGPT, an AI SRE running inside the production Kubernetes cluster "payment-prod" at ACME Corp. Argo Rollouts has paused a canary deployment of payments-api v2.4 at step 3 (Analysis) because Prometheus detected the canary pods are failing SLOs.
+  return `You are an AI SRE analyzing the Kubernetes namespace "payment-prod". Argo Rollouts has paused a canary deployment of payments-api v2.4 at step 3 (Analysis) because Prometheus detected the canary pods are failing SLOs.
 
-You just ran k8sgpt analyze against the cluster and found ${findings.length} real issues. The canary Deployment (v2.4) has 0/2 ready replicas; the stable Deployment (v2.3) has 4/4 ready replicas.
+A cluster analyzer found ${findings.length} real issues in that namespace.
 
 The analyzer findings, in JSON:
 
@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
         {
           role: "system",
           content:
-            "You are K8sGPT, an AI SRE assistant. You analyze Kubernetes cluster state and produce concise, technical root-cause analyses with concrete remediation steps. You never speculate beyond what the analyzer output shows you.",
+            "You are an AI SRE assistant. You analyze Kubernetes cluster state and produce concise, technical root-cause analyses with concrete remediation steps. You never speculate beyond what the analyzer output shows you.",
         },
         { role: "user", content: prompt },
       ],

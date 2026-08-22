@@ -197,7 +197,7 @@ record_gif() {
 # Record — timings match the real ~3-4 min cycle
 # -----------------------------------------------------------------------------
 record_gif "demo-1-pipeline" 1280 720 60 0
-record_gif "demo-2-k8sgpt"   1280 720 30 1200
+record_gif "demo-2-diagnosis"   1280 720 30 1200
 record_gif "demo-3-rollback" 1280 720 20 0
 
 echo ""

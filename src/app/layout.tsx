@@ -11,13 +11,13 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "GitOps Progressive Delivery & Incident Response Demo",
   description:
-    "Interactive simulation of an Argo CD + Argo Rollouts + Prometheus + K8sGPT progressive delivery pipeline with AI-driven incident response and automated rollback.",
+    "A live Argo CD + Argo Rollouts + Prometheus progressive delivery pipeline running against a real k3s cluster, with GLM-4.5 root-cause analysis and SLO-driven automated rollback.",
   keywords: [
     "GitOps",
     "Argo CD",
     "Argo Rollouts",
     "Prometheus",
-    "K8sGPT",
+    "GLM-4.5",
     "Progressive Delivery",
     "Canary Deployment",
     "SRE",
@@ -25,13 +25,10 @@ export const metadata: Metadata = {
     "CNCF",
   ],
   authors: [{ name: "adventurewave-labs" }],
-  icons: {
-    icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
-  },
   openGraph: {
     title: "GitOps Progressive Delivery Demo",
     description:
-      "Argo CD + Argo Rollouts + Prometheus + K8sGPT — interactive pipeline simulation.",
+      "Argo CD + Argo Rollouts + Prometheus on a real k3s cluster — live progressive delivery.",
     url: "https://github.com/adventurewave-labs",
     siteName: "adventurewave-labs",
     type: "website",
@@ -40,7 +37,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "GitOps Progressive Delivery Demo",
     description:
-      "Argo CD + Argo Rollouts + Prometheus + K8sGPT — interactive pipeline simulation.",
+      "Argo CD + Argo Rollouts + Prometheus on a real k3s cluster — live progressive delivery.",
   },
 };
 

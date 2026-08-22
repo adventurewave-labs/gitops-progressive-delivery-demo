@@ -16,7 +16,7 @@ import {
 import { ArgoSyncCard } from "@/components/ArgoSyncCard";
 import { RolloutsTrafficCard } from "@/components/RolloutsTrafficCard";
 import { PrometheusMetricsCard } from "@/components/PrometheusMetricsCard";
-import { K8sGPTTerminalCard } from "@/components/K8sGPTTerminalCard";
+import { AnalyzerTerminalCard } from "@/components/AnalyzerTerminalCard";
 import { useClusterState } from "@/hooks/use-cluster-state";
 import type { ClusterState } from "@/hooks/use-cluster-state";
 
@@ -70,7 +70,7 @@ function Header({ state }: { state: ClusterState | null }) {
         <p className="mt-1 max-w-2xl text-sm text-zinc-400">
           <span className="font-semibold text-emerald-400">LIVE DEMO · REAL KUBERNETES · REAL LLM.</span>{" "}
           Argo CD syncs a new release, Argo Rollouts shifts canary traffic, Prometheus detects an
-          SLO burn, and K8sGPT diagnoses + auto-rolls back — all driven by a real k3s cluster, real Prometheus
+          SLO burn, and GLM-4.5 diagnoses + auto-rolls back — all driven by a real k3s cluster, real Prometheus
           scrapes, and real GLM-4.5 calls.
         </p>
       </div>
@@ -177,7 +177,7 @@ function StackLegend() {
     { icon: Boxes, name: "Argo CD", role: "GitOps sync", color: "text-blue-400", bg: "bg-blue-500/10" },
     { icon: Rocket, name: "Argo Rollouts", role: "Canary + traffic shift", color: "text-amber-400", bg: "bg-amber-500/10" },
     { icon: Activity, name: "Prometheus", role: "SLO metrics", color: "text-emerald-400", bg: "bg-emerald-500/10" },
-    { icon: Bot, name: "K8sGPT + GLM-4.5", role: "Real LLM diagnosis", color: "text-purple-400", bg: "bg-purple-500/10" },
+    { icon: Bot, name: "GLM-4.5", role: "Real LLM diagnosis", color: "text-purple-400", bg: "bg-purple-500/10" },
   ];
   return (
     <div className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -220,7 +220,7 @@ function MainGrid({ state }: { state: ClusterState }) {
       </div>
       <div className="flex flex-col gap-4 lg:gap-5">
         <PrometheusMetricsCard metrics={state.metrics} slo={state.slo} />
-        <K8sGPTTerminalCard phase={state.phase} findings={state.findings} />
+        <AnalyzerTerminalCard phase={state.phase} findings={state.findings} />
       </div>
     </div>
   );

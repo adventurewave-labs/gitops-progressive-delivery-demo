@@ -54,10 +54,10 @@ function usePromSeries(query: string) {
 
 export function PrometheusMetricsCard({ metrics, slo }: Props) {
   const errSeries = usePromSeries(
-    'rate(http_requests_total{service="payments-api",track="canary",code=~"5.."}[5m]) / rate(http_requests_total{service="payments-api",track="canary"}[5m]) * 100',
+    'sum(rate(http_requests_total{service="payments-api-canary",code=~"5.."}[1m])) / clamp_min(sum(rate(http_requests_total{service="payments-api-canary"}[1m])), 0.001) * 100',
   );
   const latSeries = usePromSeries(
-    'histogram_quantile(0.99, rate(http_request_duration_seconds_bucket{service="payments-api",track="canary"}[5m])) * 1000',
+    'histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{service="payments-api-canary"}[1m])) by (le)) * 1000',
   );
 
   const violated = slo.status === "violated";
@@ -82,7 +82,7 @@ export function PrometheusMetricsCard({ metrics, slo }: Props) {
               Prometheus · SLO Metrics
             </h2>
             <p className="text-[11px] uppercase tracking-widest text-zinc-500">
-              scrape: payments-api / 15s · prometheus.internal.acme.io
+              scrape: payments-api-canary / 5s · prometheus-operated.monitoring.svc
             </p>
           </div>
         </div>
@@ -194,8 +194,8 @@ export function PrometheusMetricsCard({ metrics, slo }: Props) {
           promql · live query
         </div>
         <pre className="overflow-x-auto font-mono text-[10px] leading-relaxed text-zinc-400">
-{`rate(http_requests_total{service="payments-api",track="canary",code=~"5.."}[5m])
-/ rate(http_requests_total{service="payments-api",track="canary"}[5m]) * 100`}
+{`sum(rate(http_requests_total{service="payments-api-canary",code=~"5.."}[1m]))
+/ clamp_min(sum(rate(http_requests_total{service="payments-api-canary"}[1m])), 0.001) * 100`}
         </pre>
       </div>
 
