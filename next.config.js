@@ -16,6 +16,12 @@ const nextConfig = {
   // Allow the sandbox preview host to talk to the Next.js dev server without
   // a cross-origin warning. (Production / Docker builds are unaffected.)
   allowedDevOrigins: ["*.space-z.ai", "*.vercel.app"],
+  // /showcase used to be an app route that redirected to
+  // process.env.URL ?? "http://localhost:3000", so every deployed visitor was
+  // sent to their own machine. Rewrite to the static file instead.
+  async rewrites() {
+    return [{ source: "/showcase", destination: "/showcase/index.html" }];
+  },
 };
 
 module.exports = nextConfig;

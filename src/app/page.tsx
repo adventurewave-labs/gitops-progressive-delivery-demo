@@ -20,6 +20,47 @@ import { AnalyzerTerminalCard } from "@/components/AnalyzerTerminalCard";
 import { useClusterState } from "@/hooks/use-cluster-state";
 import type { ClusterState } from "@/hooks/use-cluster-state";
 
+
+/**
+ * /api/cluster-state reads a live cluster through KUBECONFIG. When there is no
+ * cluster - a Vercel build, or a checkout where setup.sh has not been run - say
+ * so, instead of showing "connecting to cluster..." forever.
+ */
+function NoCluster({ error }: { error: string | null }) {
+  return (
+    <div className="mx-auto max-w-xl py-20 text-center">
+      <div className="text-sm font-semibold text-zinc-300">No cluster reachable</div>
+      <p className="mt-2 text-sm leading-relaxed text-zinc-500">
+        This dashboard renders live Argo Rollouts, Prometheus and kube-apiserver
+        state. It needs a k3s cluster on the same host, so it stays empty on a
+        static deployment.
+      </p>
+      <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
+        <a
+          href="/showcase/index.html"
+          className="inline-flex items-center rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs font-medium text-zinc-200 transition-colors hover:border-zinc-600 hover:bg-zinc-800"
+        >
+          Watch a recorded run
+        </a>
+        <a
+          href="https://codespaces.new/adventurewave-labs/gitops-progressive-delivery-demo?quickstart=1"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs font-medium text-zinc-400 transition-colors hover:border-zinc-700 hover:bg-zinc-800"
+        >
+          Run it in a Codespace
+        </a>
+      </div>
+      <p className="mt-5 font-mono text-[11px] text-zinc-600">
+        bash setup.sh → bash dev-real.sh → bash demo-controller/cycle.sh
+      </p>
+      {error ? (
+        <p className="mt-3 font-mono text-[11px] text-zinc-700">/api/cluster-state: {error}</p>
+      ) : null}
+    </div>
+  );
+}
+
 export default function Home() {
   const { state, error, loading } = useClusterState(1000);
 
@@ -32,8 +73,10 @@ export default function Home() {
             ⚠ cluster-state API error: <code className="font-mono">{error}</code>
           </div>
         )}
-        {loading && !state ? (
+        {!state && loading && !error ? (
           <div className="py-20 text-center text-zinc-500">connecting to cluster…</div>
+        ) : !state ? (
+          <NoCluster error={error} />
         ) : (
           <>
             <StateRail state={state!} />
