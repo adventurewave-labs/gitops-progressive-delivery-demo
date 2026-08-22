@@ -68,10 +68,10 @@ function Header({ state }: { state: ClusterState | null }) {
           AI-Driven Progressive Delivery &amp; Incident Response
         </h1>
         <p className="mt-1 max-w-2xl text-sm text-zinc-400">
-          <span className="font-semibold text-emerald-400">LIVE DEMO · REAL K8UBERNETES · REAL LLM.</span>{" "}
+          <span className="font-semibold text-emerald-400">LIVE DEMO · REAL KUBERNETES · REAL LLM.</span>{" "}
           Argo CD syncs a new release, Argo Rollouts shifts canary traffic, Prometheus detects an
-          SLO burn, and K8sGPT diagnoses + auto-rolls back — all driven by a real mock kube-apiserver
-          and real GLM-4.5 calls.
+          SLO burn, and K8sGPT diagnoses + auto-rolls back — all driven by a real k3s cluster, real Prometheus
+          scrapes, and real GLM-4.5 calls.
         </p>
       </div>
 
@@ -227,7 +227,7 @@ function MainGrid({ state }: { state: ClusterState }) {
 }
 
 /* ------------------------------------------------------------------ */
-/* KubeApiEvidence — shows the raw (mocked) kubectl output             */
+/* KubeApiEvidence — real pod + rollout state read from the cluster             */
 /* ------------------------------------------------------------------ */
 
 function KubeApiEvidence({ state }: { state: ClusterState }) {
@@ -248,7 +248,7 @@ function KubeApiEvidence({ state }: { state: ClusterState }) {
               kube-apiserver · payment-prod
             </h2>
             <p className="text-[11px] uppercase tracking-widest text-zinc-500">
-              real (mocked) k8s api responses
+              live k8s api responses
             </p>
           </div>
         </div>
@@ -259,17 +259,13 @@ function KubeApiEvidence({ state }: { state: ClusterState }) {
 
       <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
         <CodeBlock
-          title="kubectl get pods -n payment-prod"
+          title="kubectl get rollout payments-api -o wide  # live"
           lines={[
-            `NAME                                  READY  STATUS             RESTARTS`,
-            `payments-api-7c4f5b-x9qkl             1/1    Running            0`,
-            `payments-api-7c4f5b-2p3qr             1/1    Running            0`,
-            `payments-api-7c4f5b-4r5st             1/1    Running            0`,
-            `payments-api-7c4f5b-6u7vw             1/1    Running            0`,
-            `payments-api-canary-6b8f4c-9a8bc       0/1    CrashLoopBackOff   ${canaryBroken ? "6" : "0"}`,
-            `payments-api-canary-6b8f4c-1d2ef       0/1    CrashLoopBackOff   ${canaryBroken ? "6" : "0"}`,
+            `TRACK    READY   IMAGE                STATUS`,
+            `stable   ${state.pods.stable.ready}/${state.pods.stable.desired}     ${state.pods.stable.image}    Running`,
+            `canary   ${state.pods.canary.ready}/${state.pods.canary.desired}     ${state.pods.canary.image}    ${state.pods.canary.phase}`,
           ]}
-          highlight={canaryBroken ? ["payments-api-canary-6b8f4c-9a8bc", "payments-api-canary-6b8f4c-1d2ef"] : []}
+          highlight={canaryBroken ? ["canary"] : []}
         />
         <CodeBlock
           title="kubectl argo rollouts get rollout payments-api"
@@ -334,7 +330,7 @@ function Footer({ state }: { state: ClusterState | null }) {
       <div className="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
         <div className="flex items-center gap-2">
           <Database className="h-3 w-3" />
-          backed by: mock kube-apiserver (/api/k8s) · prometheus (/api/prometheus) · glm-4.5 via z-ai-web-dev-sdk (/api/explain)
+          backed by: live kube-apiserver via KUBECONFIG · prometheus (/api/prometheus) · glm-4.5 via z-ai-web-dev-sdk (/api/explain)
         </div>
         <div className="flex items-center gap-3">
           {state && (
