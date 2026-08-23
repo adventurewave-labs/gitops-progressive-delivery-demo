@@ -68,6 +68,13 @@ function rolloutToInfo(rollout: any): RolloutInfo {
       if (typeof w === 'number') { canaryWeight = w; break; }
     }
   }
+  const curStep = (typeof stepIndex === 'number' ? steps[stepIndex] : undefined) ?? {};
+  const currentStepKind =
+    'analysis' in curStep ? 'analysis'
+    : 'pause' in curStep ? 'pause'
+    : 'setWeight' in curStep ? 'setWeight'
+    : '';
+
   return {
     name: rollout?.metadata?.name ?? 'payments-api',
     namespace: rollout?.metadata?.namespace ?? NS,
@@ -76,6 +83,7 @@ function rolloutToInfo(rollout: any): RolloutInfo {
     canaryWeight,
     stableWeight: 100 - canaryWeight,
     currentStep: typeof s.currentStepIndex === 'number' ? s.currentStepIndex : -1,
+    currentStepKind,
     stepsCompleted: typeof s.currentStepIndex === 'number' ? s.currentStepIndex : 0,
     stableRS: s.stableRS ?? '',
     // Argo Rollouts exposes the current pod-template hash as status.currentPodHash; status.currentRS does not exist in the API
@@ -94,15 +102,20 @@ function rolloutToInfo(rollout: any): RolloutInfo {
 
 /** Derive the demo phase from the real Rollout + pod state */
 function derivePhase(rollout: RolloutInfo, pods: PodInfo[], metrics: { canaryErrorRate: number; canaryP99: number }): Phase {
-  const { phase: rPhase, canaryWeight, currentStep } = rollout;
+  const { phase: rPhase, canaryWeight, currentStepKind } = rollout;
 
   // Aborted / Degraded = the analysis failed, rollback in progress
   if (rPhase === 'Aborted' || rPhase === 'Degraded') {
     return 'rollback';
   }
 
-  // Paused at the analysis step (step 3 in 0-indexed)
-  if (rPhase === 'Paused' && currentStep >= 3) {
+  // On the analysis step. This used to test `rPhase === 'Paused' && currentStep
+  // >= 3`, which is never true: Argo Rollouts stays *Progressing* through an
+  // inline analysis step and only pauses for an explicit `pause` step. So
+  // 'anomaly' and 'analyzing' were unreachable, the ANOMALY DETECTED / AI
+  // ANALYZING rail chips never lit, runRealAnalyzers never ran outside a
+  // rollback, and the GLM-4.5 card never had findings to explain.
+  if (currentStepKind === 'analysis' && rPhase !== 'Healthy') {
     // Check if any canary pods are CrashLoopBackOff or OOMKilled
     const canaryPods = pods.filter(p => p.labels?.['rollouts-pod-template-hash'] === rollout.currentRS);
     const hasOOMKilled = canaryPods.some(p =>
@@ -188,13 +201,13 @@ function runRealAnalyzers(pods: PodInfo[], rollout: RolloutInfo): Finding[] {
   }
 
   // Rollout paused detection
-  if (rollout.phase === 'Paused' && rollout.currentStep >= 3) {
+  if (rollout.currentStepKind === 'analysis' && rollout.phase !== 'Healthy') {
     findings.push({
       kind: 'Rollout',
       name: `${rollout.namespace}/${rollout.name}`,
       analyzer: 'rollout',
       severity: 'warning',
-      error: `Rollout ${rollout.name} is paused at step ${rollout.currentStep} (Analysis) with canary weight ${rollout.canaryWeight}%`,
+      error: `Rollout ${rollout.name} is on the analysis step (step ${rollout.currentStep}) with canary weight ${rollout.canaryWeight}%`,
       suggestedFix: `kubectl argo rollouts get rollout ${rollout.name} -n ${rollout.namespace}`,
     });
   }
@@ -223,7 +236,7 @@ export async function GET() {
       rolloutUnreadable = true;
       rollout = {
         name: 'payments-api', namespace: NS, phase: 'Unknown', message: '',
-        canaryWeight: 0, stableWeight: 100, currentStep: -1, stepsCompleted: 0,
+        canaryWeight: 0, stableWeight: 100, currentStep: -1, currentStepKind: '', stepsCompleted: 0,
         stableRS: '', currentRS: '', availableReplicas: 0, readyReplicas: 0,
         replicas: 0, conditions: [],
       };
@@ -356,6 +369,7 @@ export async function GET() {
       namespace: rollout.namespace,
       phase: rollout.phase,
       currentStep: rollout.currentStep,
+      currentStepKind: rollout.currentStepKind,
       stableWeight: rollout.stableWeight,
       canaryWeight: rollout.canaryWeight,
       stableRS: rollout.stableRS,

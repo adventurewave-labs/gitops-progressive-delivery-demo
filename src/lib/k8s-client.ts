@@ -87,6 +87,13 @@ export interface RolloutInfo {
   canaryWeight: number;
   stableWeight: number;
   currentStep: number;
+  /**
+   * Kind of the step at currentStep ('setWeight' | 'pause' | 'analysis' | '').
+   * Argo Rollouts stays Progressing - not Paused - while an inline analysis
+   * step runs, so the step kind is the only reliable way to tell that the
+   * analysis is happening.
+   */
+  currentStepKind: string;
   stepsCompleted: number;
   stableRS: string;
   currentRS: string;

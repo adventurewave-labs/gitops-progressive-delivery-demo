@@ -27,6 +27,7 @@ export interface ClusterState {
     namespace: string;
     phase: "Paused" | "Aborted" | "Healthy" | "Progressing";
     currentStep: number;
+    currentStepKind: string;
     stableWeight: number;
     canaryWeight: number;
     stableRS: string;
