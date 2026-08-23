@@ -22,21 +22,26 @@ number on the dashboard is read back out of the cluster at request time.
 
 ## What it looks like
 
-The full canary cycle — Argo CD sync, traffic shift, Prometheus SLO burn, abort, rollback:
+Argo CD sync → canary 20% → canary 50%, with Prometheus tripping the
+error-rate SLO on the way:
 
 ![Pipeline walkthrough](public/showcase/demo-1-pipeline.gif)
 
-The analyzer and the GLM-4.5 root-cause response:
+The analyzer running against the live cluster: seven analyzers, one real
+finding, routed to GLM-4.5. The `/api/explain` call errors here because the
+recording box had no `ZAI_API_KEY` — with one set, the diagnosis renders in
+that same panel:
 
 ![Analyzer and LLM diagnosis](public/showcase/demo-2-diagnosis.gif)
 
-The rollback itself:
+The abort: canary image reverted to v2.3 and Argo CD re-syncing:
 
 ![Rollback](public/showcase/demo-3-rollback.gif)
 
 These are screen recordings of the running system, captured by
 `scripts/record-gifs.sh` driving the live dashboard with Playwright. Nothing in
-them is staged.
+them is staged — the recorder refuses to write a clip in which the dashboard
+never left a single phase, so a still screen can't be passed off as a pipeline.
 
 ---
 
