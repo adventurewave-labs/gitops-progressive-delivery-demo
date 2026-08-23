@@ -229,7 +229,7 @@ export function AnalyzerTerminalCard({ phase, findings }: Props) {
             backend: glm-4.5
           </span>
           <span className="text-zinc-700">·</span>
-          <span>analyzers: 5</span>
+          <span>analyzers: 7</span>
           <span className="text-zinc-700">·</span>
           <span>namespace: payment-prod</span>
         </div>

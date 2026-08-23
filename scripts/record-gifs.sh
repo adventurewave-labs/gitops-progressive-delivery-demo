@@ -261,7 +261,12 @@ fi
 record_gif "demo-1-pipeline"  1280 720 60 '-'                      'syncing|canary20' 300 || exit 1
 
 # 2. The analyzer + GLM-4.5 card, once there is something to analyse.
-record_gif "demo-2-diagnosis" 1280 720 30 '[data-demo="analyzer"]' 'anomaly|analyzing' 300 || exit 1
+# Gate on canary50, NOT on anomaly. AnalyzerTerminalCard runs the analyzer on
+# the *transition* into anomaly/analyzing, so the page has to already be mounted
+# when that happens. Waiting for anomaly first means Chromium is still launching
+# while the ~15s analysis window burns, and the clip shows an idle card reading
+# "awaiting prometheus slo violation". Starting one step earlier catches it live.
+record_gif "demo-2-diagnosis" 1280 720 45 '[data-demo="analyzer"]' 'canary50|canary20' 300 || exit 1
 
 # 3. The abort itself.
 record_gif "demo-3-rollback"  1280 720 20 '-'                      'rollback'         300 || exit 1
