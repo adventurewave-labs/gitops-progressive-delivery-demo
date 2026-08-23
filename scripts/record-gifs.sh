@@ -181,7 +181,19 @@ wait_for_phase() {
     return 1
 }
 
+# Optional args name the clips to record, so one can be re-taken without
+# re-shooting the others (e.g. after adding ZAI_API_KEY for the LLM card).
+want() {
+    [ "$#" -eq 0 ] && return 0
+    for w in "${WANTED[@]}"; do [ "$w" = "$1" ] && return 0; done
+    return 1
+}
+WANTED=("$@")
+
 record_gif() {
+    if [ "${#WANTED[@]}" -gt 0 ] && ! want "$1"; then
+        echo ""; echo "=== skipping $1 (not requested) ==="; return 0
+    fi
     local name="$1" vw="$2" vh="$3" secs="$4" scroll_sel="$5" start_pattern="$6" wait_secs="${7:-300}"
     local work="/tmp/gifrec-${name}"
     local palette="/tmp/${name}-palette.png"
@@ -243,7 +255,9 @@ record_gif() {
 # -----------------------------------------------------------------------------
 # 1. The cycle from the top: Argo CD sync -> canary 20% -> canary 50%.
 #    Wait out any in-flight cycle first so we catch the next one from idle.
-wait_for_phase "idle" 420 "demo-1-pipeline (settle)" || exit 1
+if [ "${#WANTED[@]}" -eq 0 ] || want demo-1-pipeline; then
+  wait_for_phase "idle" 420 "demo-1-pipeline (settle)" || exit 1
+fi
 record_gif "demo-1-pipeline"  1280 720 60 '-'                      'syncing|canary20' 300 || exit 1
 
 # 2. The analyzer + GLM-4.5 card, once there is something to analyse.
