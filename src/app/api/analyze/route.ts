@@ -95,19 +95,46 @@ async function runRealAnalyzers(): Promise<Finding[]> {
     const steps = ((rolloutRes.body as any)?.spec?.strategy?.canary?.steps ?? []) as any[];
     const stepIndex = status.currentStepIndex as number | undefined;
 
-      if (status.phase === 'Paused') {
+      const stepKind =
+        typeof stepIndex === 'number' && steps[stepIndex]
+          ? Object.keys(steps[stepIndex])[0]
+          : 'unknown step';
+      const stepLabel = `step ${
+        typeof stepIndex === 'number' ? stepIndex + 1 : '?'
+      } of ${steps.length} (${stepKind})`;
+
+      // An aborted/degraded Rollout is the actual incident this whole demo is
+      // about, and it produced no finding at all: the only branch here tested
+      // for 'Paused'. Argo Rollouts reports Degraded on an abort and stays
+      // Progressing through an inline analysis step, so neither the failure nor
+      // the analysis was ever visible to the analyzer.
+      if (status.phase === 'Aborted' || status.phase === 'Degraded') {
+        findings.push({
+          kind: 'Rollout',
+          name: `${NS}/payments-api`,
+          analyzer: 'rollout',
+          severity: 'critical',
+          error: `Rollout payments-api is ${status.phase} at ${stepLabel}${
+            status.message ? ` - ${status.message}` : ''
+          }`,
+          suggestedFix: `kubectl argo rollouts get rollout payments-api -n ${NS}`,
+        });
+      } else if (stepKind === 'analysis') {
         findings.push({
           kind: 'Rollout',
           name: `${NS}/payments-api`,
           analyzer: 'rollout',
           severity: 'warning',
-          error: `Rollout payments-api is paused at step ${
-          typeof stepIndex === 'number' ? stepIndex + 1 : '?'
-        } of ${steps.length} (${
-          typeof stepIndex === 'number' && steps[stepIndex]
-            ? Object.keys(steps[stepIndex])[0]
-            : 'unknown step'
-        })`,
+          error: `Rollout payments-api is running its AnalysisRun at ${stepLabel}; the canary is still taking traffic`,
+          suggestedFix: `kubectl argo rollouts get rollout payments-api -n ${NS}`,
+        });
+      } else if (status.phase === 'Paused') {
+        findings.push({
+          kind: 'Rollout',
+          name: `${NS}/payments-api`,
+          analyzer: 'rollout',
+          severity: 'warning',
+          error: `Rollout payments-api is paused at ${stepLabel}`,
           suggestedFix: `kubectl argo rollouts get rollout payments-api -n ${NS}`,
         });
       }
