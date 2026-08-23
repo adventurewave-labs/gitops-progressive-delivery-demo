@@ -9,6 +9,12 @@ import { fetchDiagnosis } from "@/hooks/use-cluster-state";
 interface Props {
   phase: ClusterState["phase"];
   findings: ClusterState["findings"];
+  /** When true, the card plays back a pre-recorded diagnosis instead of calling /api/analyze + /api/explain. */
+  replayMode?: boolean;
+  /** Pre-recorded GLM-4.5 diagnosis text (used only when replayMode === true). */
+  replayDiagnosis?: string | null;
+  /** Pre-recorded analyzer results (used only when replayMode === true). */
+  replayFindings?: ClusterState["findings"];
 }
 
 interface TerminalLine {
@@ -16,7 +22,7 @@ interface TerminalLine {
   text: string;
 }
 
-export function AnalyzerTerminalCard({ phase, findings }: Props) {
+export function AnalyzerTerminalCard({ phase, findings, replayMode, replayDiagnosis, replayFindings }: Props) {
   const [lines, setLines] = useState<TerminalLine[]>([]);
   const [diagnosis, setDiagnosis] = useState<LlmDiagnosis | null>(null);
   const [diagnosing, setDiagnosing] = useState(false);
@@ -24,6 +30,9 @@ export function AnalyzerTerminalCard({ phase, findings }: Props) {
   const [showJson, setShowJson] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastPhaseRef = useRef<string>("idle");
+  // Replay-mode tracks the diagnosis string separately so we can show it as a
+  // "delivered" event rather than re-fetching the live LLM endpoint.
+  const lastReplayDiagnosisRef = useRef<string | null>(null);
 
   // Run the real analyzer + LLM when the pipeline reaches the analysis step.
   // This used to test only for "analyzing", but derivePhase reports "anomaly"
@@ -35,15 +44,29 @@ export function AnalyzerTerminalCard({ phase, findings }: Props) {
     const wasAnalysing =
       lastPhaseRef.current === "analyzing" || lastPhaseRef.current === "anomaly";
     if (analysing && !wasAnalysing) {
-      runAnalyzer();
+      if (replayMode) {
+        runReplayAnalyzer();
+      } else {
+        runAnalyzer();
+      }
+    }
+    // Replay: when a pre-recorded diagnosis arrives, inject it as a delivered event.
+    if (replayMode && replayDiagnosis && replayDiagnosis !== lastReplayDiagnosisRef.current) {
+      lastReplayDiagnosisRef.current = replayDiagnosis;
+      // If the analyzer hasn't been run yet (phase jumped straight to rollback),
+      // run it now so the diagnosis lands in the terminal flow.
+      if (!analysing && phase === "rollback") {
+        runReplayAnalyzer();
+      }
     }
     if (phase === "idle") {
       setLines([]);
       setDiagnosis(null);
       setError(null);
+      lastReplayDiagnosisRef.current = null;
     }
     lastPhaseRef.current = phase;
-  }, [phase]);
+  }, [phase, replayMode, replayDiagnosis]);
 
   // Auto-scroll to bottom on new lines
   useEffect(() => {
@@ -133,6 +156,91 @@ export function AnalyzerTerminalCard({ phase, findings }: Props) {
       setLines((prev) => [
         ...prev,
         { kind: "output", text: `ERROR: ${msg}` },
+      ]);
+    }
+  }
+
+  // Replay-mode analyzer: streams the same terminal choreography as the live
+  // path, but sources findings + diagnosis from the fixture instead of calling
+  // /api/analyze and /api/explain. This keeps the visual experience identical
+  // (PRD §4.3.1: "same React components that handle live data") while running
+  // entirely client-side from a JSON fixture.
+  async function runReplayAnalyzer() {
+    setLines([]);
+    setError(null);
+    setDiagnosis(null);
+
+    const cmds: TerminalLine[] = [
+      { kind: "command", text: "$ GET /api/analyze   # replay-mode: analyzers from recorded fixture" },
+      { kind: "output", text: "" },
+      { kind: "output", text: "INFO: analyzers: pod, deployment, service, rollout, pvc, node, log" },
+      { kind: "output", text: "INFO: replaying recorded session from k3s-gitops-demo cluster" },
+      { kind: "output", text: "" },
+    ];
+
+    for (const line of cmds) {
+      await sleep(150);
+      setLines((prev) => [...prev, line]);
+    }
+
+    const replayResults = replayFindings ?? findings;
+    const problems = replayResults.length;
+
+    setLines((prev) => [
+      ...prev,
+      { kind: "output", text: `INFO: analyzer complete — ${problems} problem${problems === 1 ? "" : "s"} detected` },
+      { kind: "output", text: `INFO: routing ${problems} finding${problems === 1 ? "" : "s"} to LLM (glm-4.5 via z-ai-web-dev-sdk, recorded)` },
+      { kind: "output", text: "" },
+    ]);
+
+    for (const finding of replayResults) {
+      await sleep(400);
+      setLines((prev) => [
+        ...prev,
+        {
+          kind: "finding",
+          text: `[${finding.severity.toUpperCase()}] ${finding.kind}: ${finding.name} — ${finding.error}`,
+        },
+      ]);
+    }
+
+    await sleep(500);
+    setLines((prev) => [
+      ...prev,
+      { kind: "output", text: "" },
+      { kind: "command", text: "$ POST /api/explain   # replay: glm-4.5 diagnosis from recorded fixture" },
+      { kind: "output", text: "" },
+    ]);
+
+    if (replayDiagnosis) {
+      setDiagnosing(true);
+      // Mimic the LLM thinking pause.
+      await sleep(800);
+      setDiagnosing(false);
+
+      const diag: LlmDiagnosis = {
+        content: replayDiagnosis,
+        cached: true,
+        model: "glm-4.5 (replay)",
+        timestamp: new Date().toISOString(),
+      };
+      setDiagnosis(diag);
+
+      const diagLines = diag.content.split("\n").filter((l) => l.trim());
+      for (const line of diagLines) {
+        await sleep(120);
+        setLines((prev) => [...prev, { kind: "llm", text: line }]);
+      }
+
+      await sleep(400);
+      setLines((prev) => [
+        ...prev,
+        { kind: "output", text: "" },
+        {
+          kind: "fix",
+          text: `✓ AI diagnosis delivered (model=${diag.model})`,
+        },
+        { kind: "fix", text: "✓ triggering automated rollback via Argo Rollouts (recorded)" },
       ]);
     }
   }
