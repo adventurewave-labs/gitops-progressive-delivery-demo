@@ -236,12 +236,12 @@ record_gif() {
     local gif_w=$(( vw > 900 ? 900 : vw ))
 
     echo "  pass 1: palette..."
-    ffmpeg -y -loglevel error -ss 2 -i "${webm}" \
+    ffmpeg -y -loglevel error -ss 6 -i "${webm}" \
         -vf "fps=8,scale=${gif_w}:-1:flags=lanczos,palettegen=stats_mode=diff" \
         "${palette}"
 
     echo "  pass 2: gif encoding..."
-    ffmpeg -y -loglevel error -ss 2 -i "${webm}" -i "${palette}" \
+    ffmpeg -y -loglevel error -ss 6 -i "${webm}" -i "${palette}" \
         -lavfi "fps=8,scale=${gif_w}:-1:flags=lanczos [x]; [x][1:v] paletteuse=dither=bayer:bayer_scale=5" \
         "${gif}"
 
