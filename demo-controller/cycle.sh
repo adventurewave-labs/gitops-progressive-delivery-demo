@@ -18,6 +18,17 @@ CYCLE_DELAY=${CYCLE_DELAY:-10}  # seconds between cycles
 # Ensure k3d kubeconfig
 export KUBECONFIG="${KUBECONFIG:-${HOME}/.k3d/kubeconfig-gitops-demo.yaml}"
 
+# Two controllers at once fight each other: one patches the canary while the
+# other resets the baseline, so the Rollout never leaves its last step and the
+# dashboard sits at "idle" forever - which is how three GIFs of an idle screen
+# got recorded and shipped. Refuse to be the second instance.
+exec 200>"${TMPDIR:-/tmp}/gitops-demo-cycle.lock"
+if ! flock -n 200; then
+    echo "FAIL: another demo-controller/cycle.sh already holds the lock."
+    echo "      Stop it first:  pkill -f demo-controller/cycle.sh"
+    exit 1
+fi
+
 echo "========================================"
 echo " Demo Controller — Starting"
 echo " Namespace:  $NS"
