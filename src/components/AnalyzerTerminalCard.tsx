@@ -80,7 +80,7 @@ export function AnalyzerTerminalCard({ phase, findings }: Props) {
       setLines((prev) => [
         ...prev,
         { kind: "output", text: `INFO: analyzer complete — ${data.problems} problem${data.problems === 1 ? "" : "s"} detected` },
-        { kind: "output", text: `INFO: routing ${data.problems} findings to LLM (glm-4.5 via z-ai-web-dev-sdk)` },
+        { kind: "output", text: `INFO: routing ${data.problems} finding${data.problems === 1 ? "" : "s"} to LLM (glm-4.5 via z-ai-web-dev-sdk)` },
         { kind: "output", text: "" },
       ]);
 
