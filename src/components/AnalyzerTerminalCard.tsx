@@ -25,9 +25,16 @@ export function AnalyzerTerminalCard({ phase, findings }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastPhaseRef = useRef<string>("idle");
 
-  // When phase transitions into analyzing, run the real analyzer + LLM
+  // Run the real analyzer + LLM when the pipeline reaches the analysis step.
+  // This used to test only for "analyzing", but derivePhase reports "anomaly"
+  // whenever the canary is already OOMKilled or over its error-rate SLO on
+  // that step - which is exactly the case this card exists to explain. So the
+  // common path never triggered it.
+  const analysing = phase === "analyzing" || phase === "anomaly";
   useEffect(() => {
-    if (phase === "analyzing" && lastPhaseRef.current !== "analyzing") {
+    const wasAnalysing =
+      lastPhaseRef.current === "analyzing" || lastPhaseRef.current === "anomaly";
+    if (analysing && !wasAnalysing) {
       runAnalyzer();
     }
     if (phase === "idle") {
@@ -53,7 +60,7 @@ export function AnalyzerTerminalCard({ phase, findings }: Props) {
     const cmds: TerminalLine[] = [
       { kind: "command", text: "$ GET /api/analyze   # in-app analyzers, not the k8sgpt CLI" },
       { kind: "output", text: "" },
-      { kind: "output", text: "INFO: analyzers: pod, deployment, rollout, pvc, node" },
+      { kind: "output", text: "INFO: analyzers: pod, deployment, service, rollout, pvc, node, log" },
       { kind: "output", text: "INFO: connecting to kube-apiserver via KUBECONFIG" },
       { kind: "output", text: "" },
     ];
