@@ -475,47 +475,39 @@
 
   <!-- 30-SECOND DEMO -->
   <section id="demos">
-    <h2><span class="num">01</span>30-second cinematic demo</h2>
-    <p class="subtitle">Watch the agentic loop fire end-to-end: Argo CD syncs → Argo Rollouts shifts canary traffic → Prometheus SLO burns → analyzers run → GLM-4.5 diagnoses → auto-rollback.</p>
+    <h2><span class="num">01</span>Recorded run</h2>
+    <p class="subtitle">Three clips from one cluster: Argo CD syncs → Argo Rollouts shifts canary traffic → Prometheus trips the error-rate SLO → the analyzers run → the AnalysisRun fails → Argo Rollouts aborts and reverts.</p>
 
     <div class="demo">
       <div class="head">
-        <div class="title">Full pipeline walkthrough (26s)</div>
+        <div class="title">Full pipeline walkthrough (70s)</div>
         <div class="tag live">RECORDED FROM LIVE APP</div>
       </div>
       <img class="gif" src="demo-1-pipeline.gif" alt="Pipeline walkthrough" />
       <div class="caption">
-        One full cycle takes about 3-4 minutes and <code>cycle.sh</code> repeats it. Every value on screen — traffic split, SLO badge,
-        pod phase, analyzer findings, LLM diagnosis — comes from a real HTTP call to a real backend
-        endpoint. No client-side state machine hiding the work.
+        <code>cycle.sh</code> repeats the loop; a cycle runs roughly 2-5 minutes depending on how fast the canary breaches. Every value on screen &mdash; traffic split, SLO badge, pod phase, analyzer findings &mdash; comes from a real HTTP call to a real backend endpoint reading the cluster. No client-side state machine hiding the work.
       </div>
     </div>
 
     <div class="demo">
       <div class="head">
-        <div class="title">Analyzer terminal + real GLM-4.5 stream (14s)</div>
-        <div class="tag llm">REAL LLM CALL</div>
+        <div class="title">Analyzer terminal (45s)</div>
+        <div class="tag llm">LLM CALL NOT CONFIGURED</div>
       </div>
       <img class="gif" src="demo-2-diagnosis.gif" alt="Analyzer terminal stream" />
       <div class="caption">
-        The terminal calls <code>GET /api/analyze</code> then <code>POST /api/explain</code>, fetching real
-        analyzer findings, then makes a real GLM-4.5 call via the
-        <code>z-ai-web-dev-sdk</code>. The LLM's structured response — <em>Root Cause</em>,
-        <em>Evidence</em>, <em>Impact</em>, <em>Recommended Action</em>, <em>Diagnosis</em> —
-        streams into the terminal line by line, just like token streaming from a real LLM API.
+        The terminal calls <code>GET /api/analyze</code> &mdash; seven analyzers over live cluster state &mdash; and routes the finding to <code>POST /api/explain</code>, which makes a real GLM-4.5 call via <code>z-ai-web-dev-sdk</code>. <strong>In this recording that call fails</strong>: the box had no <code>ZAI_API_KEY</code>, so the route answers 503 and the terminal prints the error instead of a diagnosis. Everything above that line is live cluster data. Set the key and the structured response renders in the same panel.
       </div>
     </div>
 
     <div class="demo">
       <div class="head">
-        <div class="title">Rollout abort + traffic revert (10s)</div>
+        <div class="title">Rollout abort + traffic revert (24s)</div>
         <div class="tag live">ARGO ROLLOUTS</div>
       </div>
       <img class="gif" src="demo-3-rollback.gif" alt="Rollback transition" />
       <div class="caption">
-        After the LLM diagnosis completes, the pipeline triggers an automated rollback. Argo Rollouts
-        shifts 100% of traffic back to the stable ReplicaSet, the canary ReplicaSet scales to 0, and
-        Prometheus metrics return to baseline within ~3 seconds.
+        The abort is Argo Rollouts&rsquo; own decision, not the LLM&rsquo;s: the <code>prometheus-slo</code> AnalysisRun fails, the Rollout goes <code>Degraded</code>, and the controller shifts traffic back to the stable ReplicaSet on its own. The GLM-4.5 call explains what happened; it does not trigger it. In the clip the canary image reverts to <code>v2.3</code> and Argo CD re-syncs.
       </div>
     </div>
   </section>
