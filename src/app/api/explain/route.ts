@@ -100,6 +100,20 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  // Without a key ZAI.create() throws deep inside the SDK and the whole route
+  // answered a bare 500 "LLM call failed", which reads as a broken endpoint
+  // rather than an unconfigured one. Say which it is.
+  if (!process.env.ZAI_API_KEY) {
+    return NextResponse.json(
+      {
+        error: 'ZAI_API_KEY is not set',
+        detail:
+          'This route makes a real GLM-4.5 call. Copy .env.example to .env.local and set ZAI_API_KEY, then restart the dev server.',
+      },
+      { status: 503 },
+    );
+  }
+
   const prompt = buildPrompt(findings);
 
   try {

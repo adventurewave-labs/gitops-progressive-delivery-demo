@@ -135,7 +135,17 @@ export async function fetchDiagnosis(
     body: JSON.stringify(findings),
   });
   if (!res.ok) {
-    throw new Error(`explain failed: HTTP ${res.status}`);
+    // The route answers 503 with a specific reason when ZAI_API_KEY is missing.
+    // Surfacing only the status code turned "not configured" into what looked
+    // like a broken endpoint on screen.
+    const body = await res
+      .json()
+      .then((b: { error?: string; detail?: string }) => b)
+      .catch(() => undefined);
+    const reason = [body?.error, body?.detail].filter(Boolean).join(" - ");
+    throw new Error(
+      reason ? `explain failed: ${reason}` : `explain failed: HTTP ${res.status}`,
+    );
   }
   return (await res.json()) as LlmDiagnosis;
 }
