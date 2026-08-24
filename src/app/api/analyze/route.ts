@@ -194,7 +194,7 @@ async function runRealAnalyzers(): Promise<Finding[]> {
 
 export async function GET() {
   const findings = await runRealAnalyzers();
-  const analyzers = ['pod', 'deployment', 'service', 'rollout', 'pvc', 'node', 'log'];
+  const analyzers = ['pod', 'deployment', 'rollout', 'pvc', 'node'];
 
   return NextResponse.json({
     provider: '',
