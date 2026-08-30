@@ -1,0 +1,14 @@
+# gitops-progressive-delivery-demo
+
+> A GitOps progressive-delivery pipeline that actually runs: real k3s, real Argo CD, real Argo Rollouts, real Prometheus, and a real LLM call for the root-cause write-up. A deliberately broken canary gets promoted, breaches its SLO, and is rolled back by the Argo Rollouts controller — no scripted state machine, no fixture data. Every number on the dashboard is read back out of the cluster at request time.
+
+Built by [adventurewave-labs](https://github.com/adventurewave-labs). Source: https://github.com/adventurewave-labs/gitops-progressive-delivery-demo
+
+## Docs
+
+- [README](https://github.com/adventurewave-labs/gitops-progressive-delivery-demo/blob/main/README.md): what's real, how to run it, architecture, verification
+- [Live demo](https://adventurewave-labs.github.io/gitops-progressive-delivery-demo/): recorded pipeline run (canary promote, SLO breach, rollback)
+
+## Stack
+
+k3d/k3s, Argo CD, Argo Rollouts, kube-prometheus-stack, Go 1.22 (payments-api), Next.js 16 dashboard, GLM-4.5 for root-cause analysis.
