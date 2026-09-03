@@ -127,6 +127,26 @@ analysis interval. The observed abort in the last verified run was the error-rat
 path, with no OOMKill inside the 180s window. The demo does not pretend otherwise —
 `cycle.sh` reports what actually happened.
 
+### Where the "~20s" rollback figure comes from
+
+`manifests-repo/analysis-template.yaml` samples Prometheus every
+`interval: 10s`, with `failureLimit: 2` — Argo Rollouts marks the AnalysisRun
+`Failed` on the *third* breach of a metric's `successCondition`, not the first.
+Three samples 10s apart land at roughly t+0s, t+10s and t+20s after analysis
+starts, so once `canary-error-rate` is already over the 1% SLO, the AnalysisRun
+fails around the 20-second mark, and Argo Rollouts aborts the Rollout
+(canary scaled to 0, traffic back on stable) as soon as it does. That's the
+`~20s` in this repo's description.
+
+That is the time from "AnalysisRun starts" to "abort," not from the very
+start of the rollout — it excludes the earlier `pause: { duration: 15s }` at
+20% weight in `manifests-repo/rollout.yaml`, which runs before the step-up to
+50% and the AnalysisRun. It's also an observed order of magnitude rather than
+a guaranteed bound: the 5s Prometheus scrape interval and how quickly the
+goroutine leak actually pushes the error rate past 1% both shift it from run
+to run — see `scripts/uat-test.sh` and the recorded `public/showcase/uat-results.json`
+for what a given run actually measured.
+
 ---
 
 ## The pipeline
