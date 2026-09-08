@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   Github,
   Rocket,
@@ -17,76 +18,97 @@ import { ArgoSyncCard } from "@/components/ArgoSyncCard";
 import { RolloutsTrafficCard } from "@/components/RolloutsTrafficCard";
 import { PrometheusMetricsCard } from "@/components/PrometheusMetricsCard";
 import { AnalyzerTerminalCard } from "@/components/AnalyzerTerminalCard";
+import { ReplayBanner } from "@/components/ReplayBanner";
 import { useClusterState } from "@/hooks/use-cluster-state";
 import type { ClusterState } from "@/hooks/use-cluster-state";
+import { useReplayState } from "@/hooks/use-replay-state";
 
-
-/**
- * /api/cluster-state reads a live cluster through KUBECONFIG. When there is no
- * cluster - a Vercel build, or a checkout where setup.sh has not been run - say
- * so, instead of showing "connecting to cluster..." forever.
- */
-function NoCluster({ error }: { error: string | null }) {
-  return (
-    <div className="mx-auto max-w-xl py-20 text-center">
-      <div className="text-sm font-semibold text-zinc-300">No cluster reachable</div>
-      <p className="mt-2 text-sm leading-relaxed text-zinc-500">
-        This dashboard renders live Argo Rollouts, Prometheus and kube-apiserver
-        state. It needs a k3s cluster on the same host, so it stays empty on a
-        static deployment.
-      </p>
-      <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
-        <a
-          href="/showcase/index.html"
-          className="inline-flex items-center rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs font-medium text-zinc-200 transition-colors hover:border-zinc-600 hover:bg-zinc-800"
-        >
-          Watch a recorded run
-        </a>
-        <a
-          href="https://codespaces.new/adventurewave-labs/gitops-progressive-delivery-demo?quickstart=1"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center rounded-md border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs font-medium text-zinc-400 transition-colors hover:border-zinc-700 hover:bg-zinc-800"
-        >
-          Run it in a Codespace
-        </a>
-      </div>
-      <p className="mt-5 font-mono text-[11px] text-zinc-600">
-        bash setup.sh → bash dev-real.sh → bash demo-controller/cycle.sh
-      </p>
-      {error ? (
-        <p className="mt-3 font-mono text-[11px] text-zinc-700">/api/cluster-state: {error}</p>
-      ) : null}
-    </div>
-  );
-}
+type Mode = "live" | "replay" | "loading";
 
 export default function Home() {
-  const { state, error, loading } = useClusterState(1000);
+  // Live cluster poll — even when in replay mode, we keep polling slowly so a
+  // cluster coming online mid-replay can be detected (PRD §4.6 case 2).
+  const { state: liveState, error, loading } = useClusterState(3000);
+  const replay = useReplayState();
+
+  // Mode derivation:
+  //   - If the visitor has explicitly chosen to stay in replay → replay
+  //   - Else if a live cluster is reachable → live
+  //   - Else if the first poll hasn't resolved yet → loading
+  //   - Else → replay (default landing experience per PRD §4.3.2)
+  //
+  // We deliberately track the user choice in state, but the mode itself is
+  // derived during render rather than stored + updated in an effect, which
+  // avoids cascading renders and matches React 19 guidance.
+  const [userChoseReplay, setUserChoseReplay] = useState(false);
+
+  const mode: Mode = userChoseReplay
+    ? "replay"
+    : liveState
+      ? "live"
+      : loading
+        ? "loading"
+        : "replay";
+
+  // "Live cluster detected mid-replay" notice (PRD §4.6 case 2): only show
+  // when the user has chosen to stay in replay but live state has just
+  // become available.
+  const liveAvailableMidReplay = mode === "replay" && !!liveState && userChoseReplay;
+
+  const state: ClusterState | null = mode === "live" ? liveState : replay.state;
+  const replayMode = mode === "replay";
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-zinc-950 bg-grid text-zinc-100">
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
-        <Header state={state} />
-        {/* When there is no state at all, NoCluster already explains it - showing
-            the red API banner too just repeats the same line twice. */}
-        {error && state && (
+        <Header mode={mode} state={state} />
+
+        {/* Replay banner — only shown when in replay mode (PRD §4.3.1). */}
+        {replayMode && (
+          <ReplayBanner
+            controller={replay}
+            liveAvailable={liveAvailableMidReplay}
+            onSwitchToLive={() => {
+              setUserChoseReplay(false);
+              setMode("live");
+            }}
+          />
+        )}
+
+        {/* Error banner — only shown in live mode (replay errors are surfaced
+            inside the ReplayBanner itself). */}
+        {mode === "live" && error && state && (
           <div className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">
             ⚠ cluster-state API error: <code className="font-mono">{error}</code>
           </div>
         )}
-        {!state && loading && !error ? (
+
+        {/* Loading state — only show before the first poll resolves. */}
+        {mode === "loading" && (
           <div className="py-20 text-center text-zinc-500">connecting to cluster…</div>
-        ) : !state ? (
-          <NoCluster error={error} />
-        ) : (
+        )}
+
+        {/* Dashboard — same components for both live and replay modes. */}
+        {state && mode !== "loading" && (
           <>
             <StateRail state={state!} />
             <StackLegend />
-            <MainGrid state={state!} />
+            <MainGrid
+              state={state!}
+              replayMode={replayMode}
+              replayDiagnosis={replayMode ? replay.diagnosis : null}
+            />
+            {replayMode && <ReplayCodespaceCTA />}
           </>
         )}
-        <Footer state={state} />
+
+        {/* Fixture load failure fallback (PRD §4.6 case 1) — only when
+            replay failed entirely. */}
+        {replayMode && !state && (
+          <FixtureFallback error={replay.error ?? "unknown error"} />
+        )}
+
+        <Footer mode={mode} state={state} />
       </div>
     </main>
   );
@@ -96,12 +118,9 @@ export default function Home() {
 /* Header                                                              */
 /* ------------------------------------------------------------------ */
 
-function Header({ state }: { state: ClusterState | null }) {
+function Header({ mode, state }: { mode: Mode; state: ClusterState | null }) {
   const phase = state?.phase ?? "idle";
   const busy = phase !== "idle" && phase !== "rollback";
-  // Without a cluster behind it the "LIVE DEMO" claim is false, so the header
-  // has to say what this actually is instead of asserting it is live.
-  const connected = state !== null;
 
   return (
     <header className="mb-6 flex flex-col gap-4 lg:mb-8 lg:flex-row lg:items-center lg:justify-between">
@@ -109,9 +128,11 @@ function Header({ state }: { state: ClusterState | null }) {
         <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-zinc-500">
           <span
             className={
-              connected
+              mode === "live"
                 ? "inline-flex h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400"
-                : "inline-flex h-1.5 w-1.5 rounded-full bg-zinc-600"
+                : mode === "replay"
+                  ? "inline-flex h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400"
+                  : "inline-flex h-1.5 w-1.5 rounded-full bg-zinc-600"
             }
           />
           adventurewave-labs
@@ -122,7 +143,7 @@ function Header({ state }: { state: ClusterState | null }) {
           AI-Driven Progressive Delivery &amp; Incident Response
         </h1>
         <p className="mt-1 max-w-2xl text-sm text-zinc-400">
-          {connected ? (
+          {mode === "live" ? (
             <>
               <span className="font-semibold text-emerald-400">
                 LIVE DEMO · REAL KUBERNETES · REAL LLM.
@@ -131,11 +152,17 @@ function Header({ state }: { state: ClusterState | null }) {
               SLO burn, and GLM-4.5 diagnoses + auto-rolls back — all driven by a real k3s cluster,
               real Prometheus scrapes, and real GLM-4.5 calls.
             </>
+          ) : mode === "replay" ? (
+            <>
+              <span className="font-semibold text-amber-300">REPLAY · RECORDED FROM A REAL K3S CLUSTER.</span>{" "}
+              Every panel below shows the same Argo CD, Argo Rollouts, Prometheus, and kube-apiserver
+              state captured from a live run — including a real GLM-4.5 root-cause analysis. Spin up
+              your own cluster with the Codespace button below to run it live.
+            </>
           ) : (
             <>
-              <span className="font-semibold text-zinc-300">NOT CONNECTED TO A CLUSTER.</span>{" "}
-              Every panel below reads live Argo CD, Argo Rollouts, Prometheus and kube-apiserver
-              state — nothing is mocked, so there is nothing to show until a cluster is running.
+              <span className="font-semibold text-zinc-300">CONNECTING…</span>{" "}
+              Attempting to reach a live cluster; falling back to replay mode if unreachable.
             </>
           )}
         </p>
@@ -271,7 +298,15 @@ function StackLegend() {
 /* Main 2-col grid                                                    */
 /* ------------------------------------------------------------------ */
 
-function MainGrid({ state }: { state: ClusterState }) {
+function MainGrid({
+  state,
+  replayMode,
+  replayDiagnosis,
+}: {
+  state: ClusterState;
+  replayMode: boolean;
+  replayDiagnosis: string | null;
+}) {
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-5">
       <div className="flex flex-col gap-4 lg:gap-5">
@@ -292,7 +327,13 @@ function MainGrid({ state }: { state: ClusterState }) {
       </div>
       <div className="flex flex-col gap-4 lg:gap-5">
         <PrometheusMetricsCard metrics={state.metrics} slo={state.slo} />
-        <AnalyzerTerminalCard phase={state.phase} findings={state.findings} />
+        <AnalyzerTerminalCard
+          phase={state.phase}
+          findings={state.findings}
+          replayMode={replayMode}
+          replayDiagnosis={replayDiagnosis}
+          replayFindings={state.findings}
+        />
       </div>
     </div>
   );
@@ -384,7 +425,7 @@ function CodeBlock({
                   : "text-zinc-400"
             }
           >
-            {line || " "}
+            {line || " "}
           </div>
         ))}
       </pre>
@@ -393,16 +434,86 @@ function CodeBlock({
 }
 
 /* ------------------------------------------------------------------ */
+/* ReplayCodespaceCTA — below dashboard (PRD §4.3.2)                  */
+/* ------------------------------------------------------------------ */
+
+function ReplayCodespaceCTA() {
+  return (
+    <div className="mt-6 rounded-xl border border-zinc-800 bg-zinc-900/60 p-5 text-center">
+      <p className="text-sm text-zinc-300">
+        This was a recorded session.{" "}
+        <span className="font-semibold text-zinc-100">Spin up your own cluster</span> to run it live —
+        the same Argo CD syncs, real OOMKilled pods, real GLM-4.5 diagnosis, all driven by your own k3s.
+      </p>
+      <div className="mt-4 flex flex-wrap items-center justify-center gap-2.5">
+        <a
+          href="https://codespaces.new/adventurewave-labs/gitops-progressive-delivery-demo?quickstart=1"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-xs font-semibold text-amber-200 transition-colors hover:bg-amber-500/20"
+        >
+          <Rocket className="h-3.5 w-3.5" />
+          Run it in a Codespace
+        </a>
+        <a
+          href="/showcase/index.html"
+          className="inline-flex items-center gap-2 rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs font-medium text-zinc-300 transition-colors hover:border-zinc-600 hover:bg-zinc-800"
+        >
+          Watch the full recorded run
+        </a>
+      </div>
+      <p className="mt-4 font-mono text-[11px] text-zinc-600">
+        bash setup.sh → bash dev-real.sh → bash demo-controller/cycle.sh
+      </p>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* FixtureFallback — PRD §4.6 case 1                                  */
+/* ------------------------------------------------------------------ */
+
+function FixtureFallback({ error }: { error: string }) {
+  return (
+    <div className="mx-auto max-w-xl py-20 text-center">
+      <div className="text-sm font-semibold text-red-300">Replay fixture failed to load</div>
+      <p className="mt-2 text-sm leading-relaxed text-zinc-500">
+        The recorded session could not be loaded. This is unexpected — the fixture is a static JSON
+        file shipped with the build. Please file an issue if you see this.
+      </p>
+      <pre className="mx-auto mt-4 max-w-md overflow-x-auto rounded-md border border-zinc-800 bg-zinc-950 p-3 text-left font-mono text-[11px] text-zinc-500">
+        {error}
+      </pre>
+      <a
+        href="/showcase/index.html"
+        className="mt-5 inline-flex items-center rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs font-medium text-zinc-300 transition-colors hover:border-zinc-600 hover:bg-zinc-800"
+      >
+        Watch a recorded run
+      </a>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* Footer                                                              */
 /* ------------------------------------------------------------------ */
 
-function Footer({ state }: { state: ClusterState | null }) {
+function Footer({ mode, state }: { mode: Mode; state: ClusterState | null }) {
   return (
     <footer className="mt-8 border-t border-zinc-800 pt-5 text-[11px] text-zinc-500">
       <div className="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
         <div className="flex items-center gap-2">
           <Database className="h-3 w-3" />
-          backed by: live kube-apiserver via KUBECONFIG · prometheus (/api/prometheus) · glm-4.5 via z-ai-web-dev-sdk (/api/explain)
+          {mode === "replay" ? (
+            <span>
+              backed by: <span className="text-amber-400">REPLAY FIXTURE</span> (recorded from a live
+              k3s cluster) · same Argo CD / Argo Rollouts / Prometheus / GLM-4.5 components as live mode
+            </span>
+          ) : (
+            <span>
+              backed by: live kube-apiserver via KUBECONFIG · prometheus (/api/prometheus) · glm-4.5 via z-ai-web-dev-sdk (/api/explain)
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-3">
           {state && (
