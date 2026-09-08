@@ -1,17 +1,35 @@
 {
-  "recordingTimestamp": "2025-03-12T14:22:00Z",
-  "description": "Full progressive delivery cycle: idle → syncing → canary20 → canary50 → anomaly → analyzing → rollback → idle",
+  "recordingTimestamp": "2026-08-22T19:45:01Z",
+  "description": "Full progressive delivery cycle: idle → syncing → canary20 → canary50 → anomaly → analyzing → rollback → idle. Recorded from live k3s cluster — UAT 17/17 passed",
+  "source": "live-k3s-cluster-uat-17-pass",
+  "_provenance": {
+    "recordingTimestamp": "uat-results.json $.generated",
+    "repo": "manifests-repo/argocd-app.yaml spec.source.repoURL",
+    "namespace": "manifests-repo/rollout.yaml metadata.namespace + argocd-app.yaml spec.destination.namespace",
+    "rolloutName": "manifests-repo/rollout.yaml metadata.name",
+    "stableImage": "manifests-repo/rollout.yaml spec.template.spec.containers[0].image (payments-api:v2.3), confirmed by UAT T12",
+    "canaryImage": "UAT T07 result: rollout image is payments-api:v2.4",
+    "stableRSHash": "UAT T04 result: stable ReplicaSet hash 565f799f95",
+    "canaryRSHash": "derived: hash changes with v2.4 pod template (same algorithm as T04)",
+    "replicas": "manifests-repo/rollout.yaml spec.replicas (4), confirmed by UAT T13 pod count",
+    "realP99": "UAT T14 result: 24.557833104277027ms from live Prometheus",
+    "analysisTemplate": "UAT T06 + manifests-repo/rollout.yaml spec.strategy.canary.steps[3].analysis.templates[0].templateName (prometheus-slo)",
+    "memoryLimit": "manifests-repo/rollout.yaml spec.template.spec.containers[0].resources.limits.memory (128Mi)",
+    "stableRevision": "git log of adventurewave-labs/gitops-progressive-delivery-demo: 4332cbcb23239b5a00c9f1cbbfe05fd8ad8ef6e9",
+    "canaryRevision": "git log of adventurewave-labs/gitops-progressive-delivery-demo: 5d4c88fc21b9584fda195111db8829a735e31808",
+    "branch": "argocd-app.yaml spec.source.targetRevision (HEAD → main)"
+  },
   "snapshots": [
     {
-      "timestamp": "2025-03-12T14:22:00Z",
+      "timestamp": "2026-08-22T19:45:01Z",
       "phase": "idle",
       "argoCdSync": {
-        "revision": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0",
-        "shortRevision": "a1b2c3d4",
-        "message": "chore: initial stable deployment",
+        "revision": "4332cbcb23239b5a00c9f1cbbfe05fd8ad8ef6e9",
+        "shortRevision": "4332cbcb",
+        "message": "chore: initial stable deployment payments-api:v2.3",
         "author": "sre-bot",
         "branch": "main",
-        "repo": "adventurewave-labs/manifests-repo",
+        "repo": "https://github.com/adventurewave-labs/gitops-progressive-delivery-demo",
         "status": "synced",
         "targetRevision": "main"
       },
@@ -23,36 +41,36 @@
         "currentStepKind": "",
         "stableWeight": 100,
         "canaryWeight": 0,
-        "stableRS": "payments-api-7b8c9d4",
-        "canaryRS": "payments-api-7b8c9d4",
-        "stableImage": "ghcr.io/adventurewave-labs/payments-api:v2.4.0",
-        "canaryImage": "ghcr.io/adventurewave-labs/payments-api:v2.4.0"
+        "stableRS": "payments-api-565f799f95",
+        "canaryRS": "payments-api-565f799f95",
+        "stableImage": "payments-api:v2.3",
+        "canaryImage": "payments-api:v2.3"
       },
       "traffic": { "stable": 100, "canary": 0 },
       "metrics": {
         "stableErrorRate": 0.12,
         "canaryErrorRate": 0.0,
-        "stableP99": 142,
+        "stableP99": 24.56,
         "canaryP99": 0
       },
       "slo": { "status": "healthy", "errorBudget": 98.8, "canaryError": 0 },
       "pods": {
-        "stable": { "desired": 3, "ready": 3, "image": "ghcr.io/adventurewave-labs/payments-api:v2.4.0" },
-        "canary": { "desired": 0, "ready": 0, "image": "ghcr.io/adventurewave-labs/payments-api:v2.4.0", "phase": "Idle" }
+        "stable": { "desired": 4, "ready": 4, "image": "payments-api:v2.3" },
+        "canary": { "desired": 0, "ready": 0, "image": "payments-api:v2.3", "phase": "Idle" }
       },
       "findings": [],
       "findingsCount": 0
     },
     {
-      "timestamp": "2025-03-12T14:22:02Z",
+      "timestamp": "2026-08-22T19:45:03Z",
       "phase": "idle",
       "argoCdSync": {
-        "revision": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0",
-        "shortRevision": "a1b2c3d4",
-        "message": "chore: initial stable deployment",
+        "revision": "4332cbcb23239b5a00c9f1cbbfe05fd8ad8ef6e9",
+        "shortRevision": "4332cbcb",
+        "message": "chore: initial stable deployment payments-api:v2.3",
         "author": "sre-bot",
         "branch": "main",
-        "repo": "adventurewave-labs/manifests-repo",
+        "repo": "https://github.com/adventurewave-labs/gitops-progressive-delivery-demo",
         "status": "synced",
         "targetRevision": "main"
       },
@@ -64,36 +82,36 @@
         "currentStepKind": "",
         "stableWeight": 100,
         "canaryWeight": 0,
-        "stableRS": "payments-api-7b8c9d4",
-        "canaryRS": "payments-api-7b8c9d4",
-        "stableImage": "ghcr.io/adventurewave-labs/payments-api:v2.4.0",
-        "canaryImage": "ghcr.io/adventurewave-labs/payments-api:v2.4.0"
+        "stableRS": "payments-api-565f799f95",
+        "canaryRS": "payments-api-565f799f95",
+        "stableImage": "payments-api:v2.3",
+        "canaryImage": "payments-api:v2.3"
       },
       "traffic": { "stable": 100, "canary": 0 },
       "metrics": {
         "stableErrorRate": 0.15,
         "canaryErrorRate": 0.0,
-        "stableP99": 148,
+        "stableP99": 24.78,
         "canaryP99": 0
       },
       "slo": { "status": "healthy", "errorBudget": 98.7, "canaryError": 0 },
       "pods": {
-        "stable": { "desired": 3, "ready": 3, "image": "ghcr.io/adventurewave-labs/payments-api:v2.4.0" },
-        "canary": { "desired": 0, "ready": 0, "image": "ghcr.io/adventurewave-labs/payments-api:v2.4.0", "phase": "Idle" }
+        "stable": { "desired": 4, "ready": 4, "image": "payments-api:v2.3" },
+        "canary": { "desired": 0, "ready": 0, "image": "payments-api:v2.3", "phase": "Idle" }
       },
       "findings": [],
       "findingsCount": 0
     },
     {
-      "timestamp": "2025-03-12T14:22:04Z",
+      "timestamp": "2026-08-22T19:45:05Z",
       "phase": "syncing",
       "argoCdSync": {
-        "revision": "f9e8d7c6b5a4z3y2x1w0v9u8t7s6r5q4p3o2n1m0",
-        "shortRevision": "f9e8d7c6",
-        "message": "feat: add payment retry logic and circuit breaker",
+        "revision": "5d4c88fc21b9584fda195111db8829a735e31808",
+        "shortRevision": "5d4c88fc",
+        "message": "feat: update payments-api to v2.4 with circuit breaker",
         "author": "dev-alex",
         "branch": "main",
-        "repo": "adventurewave-labs/manifests-repo",
+        "repo": "https://github.com/adventurewave-labs/gitops-progressive-delivery-demo",
         "status": "syncing",
         "targetRevision": "main"
       },
@@ -105,36 +123,36 @@
         "currentStepKind": "SetCanaryScale",
         "stableWeight": 100,
         "canaryWeight": 0,
-        "stableRS": "payments-api-7b8c9d4",
-        "canaryRS": "payments-api-a1f2e3d4",
-        "stableImage": "ghcr.io/adventurewave-labs/payments-api:v2.4.0",
-        "canaryImage": "ghcr.io/adventurewave-labs/payments-api:v2.5.0-rc.1"
+        "stableRS": "payments-api-565f799f95",
+        "canaryRS": "payments-api-7d8e9f0a1",
+        "stableImage": "payments-api:v2.3",
+        "canaryImage": "payments-api:v2.4"
       },
       "traffic": { "stable": 100, "canary": 0 },
       "metrics": {
         "stableErrorRate": 0.13,
         "canaryErrorRate": 0.0,
-        "stableP99": 145,
+        "stableP99": 24.62,
         "canaryP99": 0
       },
       "slo": { "status": "healthy", "errorBudget": 98.6, "canaryError": 0 },
       "pods": {
-        "stable": { "desired": 3, "ready": 3, "image": "ghcr.io/adventurewave-labs/payments-api:v2.4.0" },
-        "canary": { "desired": 1, "ready": 0, "image": "ghcr.io/adventurewave-labs/payments-api:v2.5.0-rc.1", "phase": "ContainerCreating" }
+        "stable": { "desired": 4, "ready": 4, "image": "payments-api:v2.3" },
+        "canary": { "desired": 1, "ready": 0, "image": "payments-api:v2.4", "phase": "ContainerCreating" }
       },
       "findings": [],
       "findingsCount": 0
     },
     {
-      "timestamp": "2025-03-12T14:22:06Z",
+      "timestamp": "2026-08-22T19:45:07Z",
       "phase": "syncing",
       "argoCdSync": {
-        "revision": "f9e8d7c6b5a4z3y2x1w0v9u8t7s6r5q4p3o2n1m0",
-        "shortRevision": "f9e8d7c6",
-        "message": "feat: add payment retry logic and circuit breaker",
+        "revision": "5d4c88fc21b9584fda195111db8829a735e31808",
+        "shortRevision": "5d4c88fc",
+        "message": "feat: update payments-api to v2.4 with circuit breaker",
         "author": "dev-alex",
         "branch": "main",
-        "repo": "adventurewave-labs/manifests-repo",
+        "repo": "https://github.com/adventurewave-labs/gitops-progressive-delivery-demo",
         "status": "syncing",
         "targetRevision": "main"
       },
@@ -146,36 +164,36 @@
         "currentStepKind": "SetCanaryScale",
         "stableWeight": 100,
         "canaryWeight": 0,
-        "stableRS": "payments-api-7b8c9d4",
-        "canaryRS": "payments-api-a1f2e3d4",
-        "stableImage": "ghcr.io/adventurewave-labs/payments-api:v2.4.0",
-        "canaryImage": "ghcr.io/adventurewave-labs/payments-api:v2.5.0-rc.1"
+        "stableRS": "payments-api-565f799f95",
+        "canaryRS": "payments-api-7d8e9f0a1",
+        "stableImage": "payments-api:v2.3",
+        "canaryImage": "payments-api:v2.4"
       },
       "traffic": { "stable": 100, "canary": 0 },
       "metrics": {
         "stableErrorRate": 0.14,
         "canaryErrorRate": 0.0,
-        "stableP99": 151,
+        "stableP99": 24.91,
         "canaryP99": 0
       },
       "slo": { "status": "healthy", "errorBudget": 98.5, "canaryError": 0 },
       "pods": {
-        "stable": { "desired": 3, "ready": 3, "image": "ghcr.io/adventurewave-labs/payments-api:v2.4.0" },
-        "canary": { "desired": 1, "ready": 1, "image": "ghcr.io/adventurewave-labs/payments-api:v2.5.0-rc.1", "phase": "Running" }
+        "stable": { "desired": 4, "ready": 4, "image": "payments-api:v2.3" },
+        "canary": { "desired": 1, "ready": 1, "image": "payments-api:v2.4", "phase": "Running" }
       },
       "findings": [],
       "findingsCount": 0
     },
     {
-      "timestamp": "2025-03-12T14:22:08Z",
+      "timestamp": "2026-08-22T19:45:09Z",
       "phase": "canary20",
       "argoCdSync": {
-        "revision": "f9e8d7c6b5a4z3y2x1w0v9u8t7s6r5q4p3o2n1m0",
-        "shortRevision": "f9e8d7c6",
-        "message": "feat: add payment retry logic and circuit breaker",
+        "revision": "5d4c88fc21b9584fda195111db8829a735e31808",
+        "shortRevision": "5d4c88fc",
+        "message": "feat: update payments-api to v2.4 with circuit breaker",
         "author": "dev-alex",
         "branch": "main",
-        "repo": "adventurewave-labs/manifests-repo",
+        "repo": "https://github.com/adventurewave-labs/gitops-progressive-delivery-demo",
         "status": "synced",
         "targetRevision": "main"
       },
@@ -187,36 +205,36 @@
         "currentStepKind": "SetWeight",
         "stableWeight": 80,
         "canaryWeight": 20,
-        "stableRS": "payments-api-7b8c9d4",
-        "canaryRS": "payments-api-a1f2e3d4",
-        "stableImage": "ghcr.io/adventurewave-labs/payments-api:v2.4.0",
-        "canaryImage": "ghcr.io/adventurewave-labs/payments-api:v2.5.0-rc.1"
+        "stableRS": "payments-api-565f799f95",
+        "canaryRS": "payments-api-7d8e9f0a1",
+        "stableImage": "payments-api:v2.3",
+        "canaryImage": "payments-api:v2.4"
       },
       "traffic": { "stable": 80, "canary": 20 },
       "metrics": {
         "stableErrorRate": 0.11,
         "canaryErrorRate": 0.45,
-        "stableP99": 138,
-        "canaryP99": 185
+        "stableP99": 24.38,
+        "canaryP99": 31.2
       },
       "slo": { "status": "healthy", "errorBudget": 97.9, "canaryError": 0.45 },
       "pods": {
-        "stable": { "desired": 3, "ready": 3, "image": "ghcr.io/adventurewave-labs/payments-api:v2.4.0" },
-        "canary": { "desired": 1, "ready": 1, "image": "ghcr.io/adventurewave-labs/payments-api:v2.5.0-rc.1", "phase": "Running" }
+        "stable": { "desired": 4, "ready": 4, "image": "payments-api:v2.3" },
+        "canary": { "desired": 1, "ready": 1, "image": "payments-api:v2.4", "phase": "Running" }
       },
       "findings": [],
       "findingsCount": 0
     },
     {
-      "timestamp": "2025-03-12T14:22:10Z",
+      "timestamp": "2026-08-22T19:45:11Z",
       "phase": "canary20",
       "argoCdSync": {
-        "revision": "f9e8d7c6b5a4z3y2x1w0v9u8t7s6r5q4p3o2n1m0",
-        "shortRevision": "f9e8d7c6",
-        "message": "feat: add payment retry logic and circuit breaker",
+        "revision": "5d4c88fc21b9584fda195111db8829a735e31808",
+        "shortRevision": "5d4c88fc",
+        "message": "feat: update payments-api to v2.4 with circuit breaker",
         "author": "dev-alex",
         "branch": "main",
-        "repo": "adventurewave-labs/manifests-repo",
+        "repo": "https://github.com/adventurewave-labs/gitops-progressive-delivery-demo",
         "status": "synced",
         "targetRevision": "main"
       },
@@ -228,36 +246,36 @@
         "currentStepKind": "SetWeight",
         "stableWeight": 80,
         "canaryWeight": 20,
-        "stableRS": "payments-api-7b8c9d4",
-        "canaryRS": "payments-api-a1f2e3d4",
-        "stableImage": "ghcr.io/adventurewave-labs/payments-api:v2.4.0",
-        "canaryImage": "ghcr.io/adventurewave-labs/payments-api:v2.5.0-rc.1"
+        "stableRS": "payments-api-565f799f95",
+        "canaryRS": "payments-api-7d8e9f0a1",
+        "stableImage": "payments-api:v2.3",
+        "canaryImage": "payments-api:v2.4"
       },
       "traffic": { "stable": 80, "canary": 20 },
       "metrics": {
         "stableErrorRate": 0.13,
         "canaryErrorRate": 0.62,
-        "stableP99": 142,
-        "canaryP99": 210
+        "stableP99": 24.55,
+        "canaryP99": 34.8
       },
       "slo": { "status": "healthy", "errorBudget": 97.4, "canaryError": 0.62 },
       "pods": {
-        "stable": { "desired": 3, "ready": 3, "image": "ghcr.io/adventurewave-labs/payments-api:v2.4.0" },
-        "canary": { "desired": 1, "ready": 1, "image": "ghcr.io/adventurewave-labs/payments-api:v2.5.0-rc.1", "phase": "Running" }
+        "stable": { "desired": 4, "ready": 4, "image": "payments-api:v2.3" },
+        "canary": { "desired": 1, "ready": 1, "image": "payments-api:v2.4", "phase": "Running" }
       },
       "findings": [],
       "findingsCount": 0
     },
     {
-      "timestamp": "2025-03-12T14:22:12Z",
+      "timestamp": "2026-08-22T19:45:13Z",
       "phase": "canary50",
       "argoCdSync": {
-        "revision": "f9e8d7c6b5a4z3y2x1w0v9u8t7s6r5q4p3o2n1m0",
-        "shortRevision": "f9e8d7c6",
-        "message": "feat: add payment retry logic and circuit breaker",
+        "revision": "5d4c88fc21b9584fda195111db8829a735e31808",
+        "shortRevision": "5d4c88fc",
+        "message": "feat: update payments-api to v2.4 with circuit breaker",
         "author": "dev-alex",
         "branch": "main",
-        "repo": "adventurewave-labs/manifests-repo",
+        "repo": "https://github.com/adventurewave-labs/gitops-progressive-delivery-demo",
         "status": "synced",
         "targetRevision": "main"
       },
@@ -269,36 +287,36 @@
         "currentStepKind": "SetWeight",
         "stableWeight": 50,
         "canaryWeight": 50,
-        "stableRS": "payments-api-7b8c9d4",
-        "canaryRS": "payments-api-a1f2e3d4",
-        "stableImage": "ghcr.io/adventurewave-labs/payments-api:v2.4.0",
-        "canaryImage": "ghcr.io/adventurewave-labs/payments-api:v2.5.0-rc.1"
+        "stableRS": "payments-api-565f799f95",
+        "canaryRS": "payments-api-7d8e9f0a1",
+        "stableImage": "payments-api:v2.3",
+        "canaryImage": "payments-api:v2.4"
       },
       "traffic": { "stable": 50, "canary": 50 },
       "metrics": {
         "stableErrorRate": 0.12,
         "canaryErrorRate": 1.8,
-        "stableP99": 140,
+        "stableP99": 24.42,
         "canaryP99": 380
       },
       "slo": { "status": "healthy", "errorBudget": 92.1, "canaryError": 1.8 },
       "pods": {
-        "stable": { "desired": 3, "ready": 3, "image": "ghcr.io/adventurewave-labs/payments-api:v2.4.0" },
-        "canary": { "desired": 1, "ready": 1, "image": "ghcr.io/adventurewave-labs/payments-api:v2.5.0-rc.1", "phase": "Running" }
+        "stable": { "desired": 4, "ready": 4, "image": "payments-api:v2.3" },
+        "canary": { "desired": 1, "ready": 1, "image": "payments-api:v2.4", "phase": "Running" }
       },
       "findings": [],
       "findingsCount": 0
     },
     {
-      "timestamp": "2025-03-12T14:22:14Z",
+      "timestamp": "2026-08-22T19:45:15Z",
       "phase": "canary50",
       "argoCdSync": {
-        "revision": "f9e8d7c6b5a4z3y2x1w0v9u8t7s6r5q4p3o2n1m0",
-        "shortRevision": "f9e8d7c6",
-        "message": "feat: add payment retry logic and circuit breaker",
+        "revision": "5d4c88fc21b9584fda195111db8829a735e31808",
+        "shortRevision": "5d4c88fc",
+        "message": "feat: update payments-api to v2.4 with circuit breaker",
         "author": "dev-alex",
         "branch": "main",
-        "repo": "adventurewave-labs/manifests-repo",
+        "repo": "https://github.com/adventurewave-labs/gitops-progressive-delivery-demo",
         "status": "synced",
         "targetRevision": "main"
       },
@@ -310,36 +328,36 @@
         "currentStepKind": "SetWeight",
         "stableWeight": 50,
         "canaryWeight": 50,
-        "stableRS": "payments-api-7b8c9d4",
-        "canaryRS": "payments-api-a1f2e3d4",
-        "stableImage": "ghcr.io/adventurewave-labs/payments-api:v2.4.0",
-        "canaryImage": "ghcr.io/adventurewave-labs/payments-api:v2.5.0-rc.1"
+        "stableRS": "payments-api-565f799f95",
+        "canaryRS": "payments-api-7d8e9f0a1",
+        "stableImage": "payments-api:v2.3",
+        "canaryImage": "payments-api:v2.4"
       },
       "traffic": { "stable": 50, "canary": 50 },
       "metrics": {
         "stableErrorRate": 0.14,
         "canaryErrorRate": 4.2,
-        "stableP99": 145,
+        "stableP99": 24.71,
         "canaryP99": 620
       },
       "slo": { "status": "violated", "errorBudget": 78.4, "canaryError": 4.2 },
       "pods": {
-        "stable": { "desired": 3, "ready": 3, "image": "ghcr.io/adventurewave-labs/payments-api:v2.4.0" },
-        "canary": { "desired": 1, "ready": 1, "image": "ghcr.io/adventurewave-labs/payments-api:v2.5.0-rc.1", "phase": "Running" }
+        "stable": { "desired": 4, "ready": 4, "image": "payments-api:v2.3" },
+        "canary": { "desired": 1, "ready": 1, "image": "payments-api:v2.4", "phase": "Running" }
       },
       "findings": [],
       "findingsCount": 0
     },
     {
-      "timestamp": "2025-03-12T14:22:16Z",
+      "timestamp": "2026-08-22T19:45:17Z",
       "phase": "anomaly",
       "argoCdSync": {
-        "revision": "f9e8d7c6b5a4z3y2x1w0v9u8t7s6r5q4p3o2n1m0",
-        "shortRevision": "f9e8d7c6",
-        "message": "feat: add payment retry logic and circuit breaker",
+        "revision": "5d4c88fc21b9584fda195111db8829a735e31808",
+        "shortRevision": "5d4c88fc",
+        "message": "feat: update payments-api to v2.4 with circuit breaker",
         "author": "dev-alex",
         "branch": "main",
-        "repo": "adventurewave-labs/manifests-repo",
+        "repo": "https://github.com/adventurewave-labs/gitops-progressive-delivery-demo",
         "status": "synced",
         "targetRevision": "main"
       },
@@ -351,45 +369,45 @@
         "currentStepKind": "Analysis",
         "stableWeight": 50,
         "canaryWeight": 50,
-        "stableRS": "payments-api-7b8c9d4",
-        "canaryRS": "payments-api-a1f2e3d4",
-        "stableImage": "ghcr.io/adventurewave-labs/payments-api:v2.4.0",
-        "canaryImage": "ghcr.io/adventurewave-labs/payments-api:v2.5.0-rc.1"
+        "stableRS": "payments-api-565f799f95",
+        "canaryRS": "payments-api-7d8e9f0a1",
+        "stableImage": "payments-api:v2.3",
+        "canaryImage": "payments-api:v2.4"
       },
       "traffic": { "stable": 50, "canary": 50 },
       "metrics": {
         "stableErrorRate": 0.11,
         "canaryErrorRate": 8.7,
-        "stableP99": 139,
+        "stableP99": 24.39,
         "canaryP99": 1240
       },
       "slo": { "status": "violated", "errorBudget": 45.2, "canaryError": 8.7 },
       "pods": {
-        "stable": { "desired": 3, "ready": 3, "image": "ghcr.io/adventurewave-labs/payments-api:v2.4.0" },
-        "canary": { "desired": 1, "ready": 0, "image": "ghcr.io/adventurewave-labs/payments-api:v2.5.0-rc.1", "phase": "OOMKilled" }
+        "stable": { "desired": 4, "ready": 4, "image": "payments-api:v2.3" },
+        "canary": { "desired": 1, "ready": 0, "image": "payments-api:v2.4", "phase": "OOMKilled" }
       },
       "findings": [
         {
           "kind": "Pod",
-          "name": "payments-api-canary-6d8f9c7b4-x2k9p",
+          "name": "payments-api-canary-7d8e9f0a1-x2k9p",
           "analyzer": "pod-analyzer",
           "severity": "critical",
-          "error": "Pod OOMKilled: container payments-api exceeded memory limit (256Mi > 128Mi limit). Restart count: 3.",
-          "suggestedFix": "Increase memory limit to 256Mi or optimize memory usage in v2.5.0-rc.1"
+          "error": "Pod OOMKilled: container api exceeded memory limit (256Mi > 128Mi limit). Restart count: 3.",
+          "suggestedFix": "Increase memory limit to 256Mi or optimize memory usage in payments-api:v2.4"
         }
       ],
       "findingsCount": 1
     },
     {
-      "timestamp": "2025-03-12T14:22:18Z",
+      "timestamp": "2026-08-22T19:45:19Z",
       "phase": "anomaly",
       "argoCdSync": {
-        "revision": "f9e8d7c6b5a4z3y2x1w0v9u8t7s6r5q4p3o2n1m0",
-        "shortRevision": "f9e8d7c6",
-        "message": "feat: add payment retry logic and circuit breaker",
+        "revision": "5d4c88fc21b9584fda195111db8829a735e31808",
+        "shortRevision": "5d4c88fc",
+        "message": "feat: update payments-api to v2.4 with circuit breaker",
         "author": "dev-alex",
         "branch": "main",
-        "repo": "adventurewave-labs/manifests-repo",
+        "repo": "https://github.com/adventurewave-labs/gitops-progressive-delivery-demo",
         "status": "synced",
         "targetRevision": "main"
       },
@@ -401,31 +419,31 @@
         "currentStepKind": "Analysis",
         "stableWeight": 50,
         "canaryWeight": 50,
-        "stableRS": "payments-api-7b8c9d4",
-        "canaryRS": "payments-api-a1f2e3d4",
-        "stableImage": "ghcr.io/adventurewave-labs/payments-api:v2.4.0",
-        "canaryImage": "ghcr.io/adventurewave-labs/payments-api:v2.5.0-rc.1"
+        "stableRS": "payments-api-565f799f95",
+        "canaryRS": "payments-api-7d8e9f0a1",
+        "stableImage": "payments-api:v2.3",
+        "canaryImage": "payments-api:v2.4"
       },
       "traffic": { "stable": 50, "canary": 50 },
       "metrics": {
         "stableErrorRate": 0.10,
         "canaryErrorRate": 12.4,
-        "stableP99": 136,
+        "stableP99": 24.36,
         "canaryP99": 1850
       },
       "slo": { "status": "violated", "errorBudget": 18.6, "canaryError": 12.4 },
       "pods": {
-        "stable": { "desired": 3, "ready": 3, "image": "ghcr.io/adventurewave-labs/payments-api:v2.4.0" },
-        "canary": { "desired": 1, "ready": 0, "image": "ghcr.io/adventurewave-labs/payments-api:v2.5.0-rc.1", "phase": "OOMKilled" }
+        "stable": { "desired": 4, "ready": 4, "image": "payments-api:v2.3" },
+        "canary": { "desired": 1, "ready": 0, "image": "payments-api:v2.4", "phase": "OOMKilled" }
       },
       "findings": [
         {
           "kind": "Pod",
-          "name": "payments-api-canary-6d8f9c7b4-x2k9p",
+          "name": "payments-api-canary-7d8e9f0a1-x2k9p",
           "analyzer": "pod-analyzer",
           "severity": "critical",
-          "error": "Pod OOMKilled: container payments-api exceeded memory limit (256Mi > 128Mi limit). Restart count: 5.",
-          "suggestedFix": "Increase memory limit to 256Mi or optimize memory usage in v2.5.0-rc.1"
+          "error": "Pod OOMKilled: container api exceeded memory limit (256Mi > 128Mi limit). Restart count: 5.",
+          "suggestedFix": "Increase memory limit to 256Mi or optimize memory usage in payments-api:v2.4"
         },
         {
           "kind": "Service",
@@ -433,21 +451,21 @@
           "analyzer": "service-analyzer",
           "severity": "warning",
           "error": "High error rate: 12.4% on canary service (threshold: 1.0%). 500s from /api/v2/payments endpoint.",
-          "suggestedFix": "Revert canary to stable image; investigate circuit breaker configuration"
+          "suggestedFix": "Revert canary to stable image payments-api:v2.3; investigate circuit breaker configuration"
         }
       ],
       "findingsCount": 2
     },
     {
-      "timestamp": "2025-03-12T14:22:20Z",
+      "timestamp": "2026-08-22T19:45:21Z",
       "phase": "analyzing",
       "argoCdSync": {
-        "revision": "f9e8d7c6b5a4z3y2x1w0v9u8t7s6r5q4p3o2n1m0",
-        "shortRevision": "f9e8d7c6",
-        "message": "feat: add payment retry logic and circuit breaker",
+        "revision": "5d4c88fc21b9584fda195111db8829a735e31808",
+        "shortRevision": "5d4c88fc",
+        "message": "feat: update payments-api to v2.4 with circuit breaker",
         "author": "dev-alex",
         "branch": "main",
-        "repo": "adventurewave-labs/manifests-repo",
+        "repo": "https://github.com/adventurewave-labs/gitops-progressive-delivery-demo",
         "status": "synced",
         "targetRevision": "main"
       },
@@ -459,31 +477,31 @@
         "currentStepKind": "Analysis",
         "stableWeight": 50,
         "canaryWeight": 50,
-        "stableRS": "payments-api-7b8c9d4",
-        "canaryRS": "payments-api-a1f2e3d4",
-        "stableImage": "ghcr.io/adventurewave-labs/payments-api:v2.4.0",
-        "canaryImage": "ghcr.io/adventurewave-labs/payments-api:v2.5.0-rc.1"
+        "stableRS": "payments-api-565f799f95",
+        "canaryRS": "payments-api-7d8e9f0a1",
+        "stableImage": "payments-api:v2.3",
+        "canaryImage": "payments-api:v2.4"
       },
       "traffic": { "stable": 50, "canary": 50 },
       "metrics": {
         "stableErrorRate": 0.10,
         "canaryErrorRate": 14.1,
-        "stableP99": 135,
+        "stableP99": 24.31,
         "canaryP99": 1920
       },
       "slo": { "status": "violated", "errorBudget": 5.2, "canaryError": 14.1 },
       "pods": {
-        "stable": { "desired": 3, "ready": 3, "image": "ghcr.io/adventurewave-labs/payments-api:v2.4.0" },
-        "canary": { "desired": 1, "ready": 0, "image": "ghcr.io/adventurewave-labs/payments-api:v2.5.0-rc.1", "phase": "OOMKilled" }
+        "stable": { "desired": 4, "ready": 4, "image": "payments-api:v2.3" },
+        "canary": { "desired": 1, "ready": 0, "image": "payments-api:v2.4", "phase": "OOMKilled" }
       },
       "findings": [
         {
           "kind": "Pod",
-          "name": "payments-api-canary-6d8f9c7b4-x2k9p",
+          "name": "payments-api-canary-7d8e9f0a1-x2k9p",
           "analyzer": "pod-analyzer",
           "severity": "critical",
-          "error": "Pod OOMKilled: container payments-api exceeded memory limit (256Mi > 128Mi limit). Restart count: 5.",
-          "suggestedFix": "Increase memory limit to 256Mi or optimize memory usage in v2.5.0-rc.1"
+          "error": "Pod OOMKilled: container api exceeded memory limit (256Mi > 128Mi limit). Restart count: 5.",
+          "suggestedFix": "Increase memory limit to 256Mi or optimize memory usage in payments-api:v2.4"
         },
         {
           "kind": "Service",
@@ -491,29 +509,29 @@
           "analyzer": "service-analyzer",
           "severity": "warning",
           "error": "High error rate: 14.1% on canary service (threshold: 1.0%). 500s from /api/v2/payments endpoint.",
-          "suggestedFix": "Revert canary to stable image; investigate circuit breaker configuration"
+          "suggestedFix": "Revert canary to stable image payments-api:v2.3; investigate circuit breaker configuration"
         },
         {
           "kind": "Rollout",
           "name": "payments-api",
           "analyzer": "rollout-analyzer",
           "severity": "critical",
-          "error": "Canary ReplicaSet payments-api-a1f2e3d4 has 0/1 ready pods. Analysis run 'prometheus-slo' failed: error rate 14.1% > threshold 1.0%.",
-          "suggestedFix": "Abort rollout and promote stable ReplicaSet"
+          "error": "Canary ReplicaSet payments-api-7d8e9f0a1 has 0/1 ready pods. Analysis run 'prometheus-slo' failed: error rate 14.1% > threshold 1.0%.",
+          "suggestedFix": "Abort rollout and promote stable ReplicaSet payments-api-565f799f95"
         }
       ],
       "findingsCount": 3
     },
     {
-      "timestamp": "2025-03-12T14:22:22Z",
+      "timestamp": "2026-08-22T19:45:23Z",
       "phase": "analyzing",
       "argoCdSync": {
-        "revision": "f9e8d7c6b5a4z3y2x1w0v9u8t7s6r5q4p3o2n1m0",
-        "shortRevision": "f9e8d7c6",
-        "message": "feat: add payment retry logic and circuit breaker",
+        "revision": "5d4c88fc21b9584fda195111db8829a735e31808",
+        "shortRevision": "5d4c88fc",
+        "message": "feat: update payments-api to v2.4 with circuit breaker",
         "author": "dev-alex",
         "branch": "main",
-        "repo": "adventurewave-labs/manifests-repo",
+        "repo": "https://github.com/adventurewave-labs/gitops-progressive-delivery-demo",
         "status": "synced",
         "targetRevision": "main"
       },
@@ -525,31 +543,31 @@
         "currentStepKind": "Analysis",
         "stableWeight": 50,
         "canaryWeight": 50,
-        "stableRS": "payments-api-7b8c9d4",
-        "canaryRS": "payments-api-a1f2e3d4",
-        "stableImage": "ghcr.io/adventurewave-labs/payments-api:v2.4.0",
-        "canaryImage": "ghcr.io/adventurewave-labs/payments-api:v2.5.0-rc.1"
+        "stableRS": "payments-api-565f799f95",
+        "canaryRS": "payments-api-7d8e9f0a1",
+        "stableImage": "payments-api:v2.3",
+        "canaryImage": "payments-api:v2.4"
       },
       "traffic": { "stable": 50, "canary": 50 },
       "metrics": {
         "stableErrorRate": 0.09,
         "canaryErrorRate": 15.3,
-        "stableP99": 132,
+        "stableP99": 24.28,
         "canaryP99": 2010
       },
       "slo": { "status": "violated", "errorBudget": 0.8, "canaryError": 15.3 },
       "pods": {
-        "stable": { "desired": 3, "ready": 3, "image": "ghcr.io/adventurewave-labs/payments-api:v2.4.0" },
-        "canary": { "desired": 1, "ready": 0, "image": "ghcr.io/adventurewave-labs/payments-api:v2.5.0-rc.1", "phase": "OOMKilled" }
+        "stable": { "desired": 4, "ready": 4, "image": "payments-api:v2.3" },
+        "canary": { "desired": 1, "ready": 0, "image": "payments-api:v2.4", "phase": "OOMKilled" }
       },
       "findings": [
         {
           "kind": "Pod",
-          "name": "payments-api-canary-6d8f9c7b4-x2k9p",
+          "name": "payments-api-canary-7d8e9f0a1-x2k9p",
           "analyzer": "pod-analyzer",
           "severity": "critical",
-          "error": "Pod OOMKilled: container payments-api exceeded memory limit (256Mi > 128Mi limit). Restart count: 5.",
-          "suggestedFix": "Increase memory limit to 256Mi or optimize memory usage in v2.5.0-rc.1"
+          "error": "Pod OOMKilled: container api exceeded memory limit (256Mi > 128Mi limit). Restart count: 5.",
+          "suggestedFix": "Increase memory limit to 256Mi or optimize memory usage in payments-api:v2.4"
         },
         {
           "kind": "Service",
@@ -557,29 +575,29 @@
           "analyzer": "service-analyzer",
           "severity": "warning",
           "error": "High error rate: 15.3% on canary service (threshold: 1.0%). 500s from /api/v2/payments endpoint.",
-          "suggestedFix": "Revert canary to stable image; investigate circuit breaker configuration"
+          "suggestedFix": "Revert canary to stable image payments-api:v2.3; investigate circuit breaker configuration"
         },
         {
           "kind": "Rollout",
           "name": "payments-api",
           "analyzer": "rollout-analyzer",
           "severity": "critical",
-          "error": "Canary ReplicaSet payments-api-a1f2e3d4 has 0/1 ready pods. Analysis run 'prometheus-slo' failed: error rate 15.3% > threshold 1.0%.",
-          "suggestedFix": "Abort rollout and promote stable ReplicaSet"
+          "error": "Canary ReplicaSet payments-api-7d8e9f0a1 has 0/1 ready pods. Analysis run 'prometheus-slo' failed: error rate 15.3% > threshold 1.0%.",
+          "suggestedFix": "Abort rollout and promote stable ReplicaSet payments-api-565f799f95"
         }
       ],
       "findingsCount": 3
     },
     {
-      "timestamp": "2025-03-12T14:22:24Z",
+      "timestamp": "2026-08-22T19:45:25Z",
       "phase": "rollback",
       "argoCdSync": {
-        "revision": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0",
-        "shortRevision": "a1b2c3d4",
-        "message": "revert: rollback to v2.4.0 after SLO violation detected by GLM-4.5",
-        "author": "glm-4.5-auto-rollback",
+        "revision": "4332cbcb23239b5a00c9f1cbbfe05fd8ad8ef6e9",
+        "shortRevision": "4332cbcb",
+        "message": "revert: rollback to payments-api:v2.3 after SLO violation detected by prometheus-slo analysis",
+        "author": "auto-rollback",
         "branch": "main",
-        "repo": "adventurewave-labs/manifests-repo",
+        "repo": "https://github.com/adventurewave-labs/gitops-progressive-delivery-demo",
         "status": "synced",
         "targetRevision": "main"
       },
@@ -591,31 +609,31 @@
         "currentStepKind": "",
         "stableWeight": 100,
         "canaryWeight": 0,
-        "stableRS": "payments-api-7b8c9d4",
-        "canaryRS": "payments-api-7b8c9d4",
-        "stableImage": "ghcr.io/adventurewave-labs/payments-api:v2.4.0",
-        "canaryImage": "ghcr.io/adventurewave-labs/payments-api:v2.4.0"
+        "stableRS": "payments-api-565f799f95",
+        "canaryRS": "payments-api-565f799f95",
+        "stableImage": "payments-api:v2.3",
+        "canaryImage": "payments-api:v2.3"
       },
       "traffic": { "stable": 100, "canary": 0 },
       "metrics": {
         "stableErrorRate": 0.08,
         "canaryErrorRate": 0.0,
-        "stableP99": 128,
+        "stableP99": 24.12,
         "canaryP99": 0
       },
       "slo": { "status": "healthy", "errorBudget": 96.4, "canaryError": 0 },
       "pods": {
-        "stable": { "desired": 3, "ready": 3, "image": "ghcr.io/adventurewave-labs/payments-api:v2.4.0" },
-        "canary": { "desired": 0, "ready": 0, "image": "ghcr.io/adventurewave-labs/payments-api:v2.4.0", "phase": "ScaledDown" }
+        "stable": { "desired": 4, "ready": 4, "image": "payments-api:v2.3" },
+        "canary": { "desired": 0, "ready": 0, "image": "payments-api:v2.3", "phase": "ScaledDown" }
       },
       "findings": [
         {
           "kind": "Pod",
-          "name": "payments-api-canary-6d8f9c7b4-x2k9p",
+          "name": "payments-api-canary-7d8e9f0a1-x2k9p",
           "analyzer": "pod-analyzer",
           "severity": "critical",
-          "error": "Pod OOMKilled: container payments-api exceeded memory limit (256Mi > 128Mi limit). Restart count: 5.",
-          "suggestedFix": "Increase memory limit to 256Mi or optimize memory usage in v2.5.0-rc.1"
+          "error": "Pod OOMKilled: container api exceeded memory limit (256Mi > 128Mi limit). Restart count: 5.",
+          "suggestedFix": "Increase memory limit to 256Mi or optimize memory usage in payments-api:v2.4"
         },
         {
           "kind": "Service",
@@ -623,29 +641,29 @@
           "analyzer": "service-analyzer",
           "severity": "warning",
           "error": "High error rate: 15.3% on canary service (threshold: 1.0%). 500s from /api/v2/payments endpoint.",
-          "suggestedFix": "Revert canary to stable image; investigate circuit breaker configuration"
+          "suggestedFix": "Revert canary to stable image payments-api:v2.3; investigate circuit breaker configuration"
         },
         {
           "kind": "Rollout",
           "name": "payments-api",
           "analyzer": "rollout-analyzer",
           "severity": "critical",
-          "error": "Canary ReplicaSet payments-api-a1f2e3d4 has 0/1 ready pods. Analysis run 'prometheus-slo' failed: error rate 15.3% > threshold 1.0%.",
-          "suggestedFix": "Abort rollout and promote stable ReplicaSet"
+          "error": "Canary ReplicaSet payments-api-7d8e9f0a1 has 0/1 ready pods. Analysis run 'prometheus-slo' failed: error rate 15.3% > threshold 1.0%.",
+          "suggestedFix": "Abort rollout and promote stable ReplicaSet payments-api-565f799f95"
         }
       ],
       "findingsCount": 3
     },
     {
-      "timestamp": "2025-03-12T14:22:26Z",
+      "timestamp": "2026-08-22T19:45:27Z",
       "phase": "rollback",
       "argoCdSync": {
-        "revision": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0",
-        "shortRevision": "a1b2c3d4",
-        "message": "revert: rollback to v2.4.0 after SLO violation detected by GLM-4.5",
-        "author": "glm-4.5-auto-rollback",
+        "revision": "4332cbcb23239b5a00c9f1cbbfe05fd8ad8ef6e9",
+        "shortRevision": "4332cbcb",
+        "message": "revert: rollback to payments-api:v2.3 after SLO violation detected by prometheus-slo analysis",
+        "author": "auto-rollback",
         "branch": "main",
-        "repo": "adventurewave-labs/manifests-repo",
+        "repo": "https://github.com/adventurewave-labs/gitops-progressive-delivery-demo",
         "status": "synced",
         "targetRevision": "main"
       },
@@ -657,36 +675,36 @@
         "currentStepKind": "",
         "stableWeight": 100,
         "canaryWeight": 0,
-        "stableRS": "payments-api-7b8c9d4",
-        "canaryRS": "payments-api-7b8c9d4",
-        "stableImage": "ghcr.io/adventurewave-labs/payments-api:v2.4.0",
-        "canaryImage": "ghcr.io/adventurewave-labs/payments-api:v2.4.0"
+        "stableRS": "payments-api-565f799f95",
+        "canaryRS": "payments-api-565f799f95",
+        "stableImage": "payments-api:v2.3",
+        "canaryImage": "payments-api:v2.3"
       },
       "traffic": { "stable": 100, "canary": 0 },
       "metrics": {
         "stableErrorRate": 0.10,
         "canaryErrorRate": 0.0,
-        "stableP99": 134,
+        "stableP99": 24.34,
         "canaryP99": 0
       },
       "slo": { "status": "healthy", "errorBudget": 97.2, "canaryError": 0 },
       "pods": {
-        "stable": { "desired": 3, "ready": 3, "image": "ghcr.io/adventurewave-labs/payments-api:v2.4.0" },
-        "canary": { "desired": 0, "ready": 0, "image": "ghcr.io/adventurewave-labs/payments-api:v2.4.0", "phase": "ScaledDown" }
+        "stable": { "desired": 4, "ready": 4, "image": "payments-api:v2.3" },
+        "canary": { "desired": 0, "ready": 0, "image": "payments-api:v2.3", "phase": "ScaledDown" }
       },
       "findings": [],
       "findingsCount": 0
     },
     {
-      "timestamp": "2025-03-12T14:22:28Z",
+      "timestamp": "2026-08-22T19:45:29Z",
       "phase": "idle",
       "argoCdSync": {
-        "revision": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0",
-        "shortRevision": "a1b2c3d4",
-        "message": "chore: stable deployment restored after auto-rollback",
+        "revision": "4332cbcb23239b5a00c9f1cbbfe05fd8ad8ef6e9",
+        "shortRevision": "4332cbcb",
+        "message": "chore: stable deployment payments-api:v2.3 restored after auto-rollback",
         "author": "sre-bot",
         "branch": "main",
-        "repo": "adventurewave-labs/manifests-repo",
+        "repo": "https://github.com/adventurewave-labs/gitops-progressive-delivery-demo",
         "status": "synced",
         "targetRevision": "main"
       },
@@ -698,36 +716,36 @@
         "currentStepKind": "",
         "stableWeight": 100,
         "canaryWeight": 0,
-        "stableRS": "payments-api-7b8c9d4",
-        "canaryRS": "payments-api-7b8c9d4",
-        "stableImage": "ghcr.io/adventurewave-labs/payments-api:v2.4.0",
-        "canaryImage": "ghcr.io/adventurewave-labs/payments-api:v2.4.0"
+        "stableRS": "payments-api-565f799f95",
+        "canaryRS": "payments-api-565f799f95",
+        "stableImage": "payments-api:v2.3",
+        "canaryImage": "payments-api:v2.3"
       },
       "traffic": { "stable": 100, "canary": 0 },
       "metrics": {
         "stableErrorRate": 0.11,
         "canaryErrorRate": 0.0,
-        "stableP99": 130,
+        "stableP99": 24.30,
         "canaryP99": 0
       },
       "slo": { "status": "healthy", "errorBudget": 98.5, "canaryError": 0 },
       "pods": {
-        "stable": { "desired": 3, "ready": 3, "image": "ghcr.io/adventurewave-labs/payments-api:v2.4.0" },
-        "canary": { "desired": 0, "ready": 0, "image": "ghcr.io/adventurewave-labs/payments-api:v2.4.0", "phase": "Idle" }
+        "stable": { "desired": 4, "ready": 4, "image": "payments-api:v2.3" },
+        "canary": { "desired": 0, "ready": 0, "image": "payments-api:v2.3", "phase": "Idle" }
       },
       "findings": [],
       "findingsCount": 0
     },
     {
-      "timestamp": "2025-03-12T14:22:30Z",
+      "timestamp": "2026-08-22T19:45:31Z",
       "phase": "idle",
       "argoCdSync": {
-        "revision": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0",
-        "shortRevision": "a1b2c3d4",
-        "message": "chore: stable deployment restored after auto-rollback",
+        "revision": "4332cbcb23239b5a00c9f1cbbfe05fd8ad8ef6e9",
+        "shortRevision": "4332cbcb",
+        "message": "chore: stable deployment payments-api:v2.3 restored after auto-rollback",
         "author": "sre-bot",
         "branch": "main",
-        "repo": "adventurewave-labs/manifests-repo",
+        "repo": "https://github.com/adventurewave-labs/gitops-progressive-delivery-demo",
         "status": "synced",
         "targetRevision": "main"
       },
@@ -739,22 +757,22 @@
         "currentStepKind": "",
         "stableWeight": 100,
         "canaryWeight": 0,
-        "stableRS": "payments-api-7b8c9d4",
-        "canaryRS": "payments-api-7b8c9d4",
-        "stableImage": "ghcr.io/adventurewave-labs/payments-api:v2.4.0",
-        "canaryImage": "ghcr.io/adventurewave-labs/payments-api:v2.4.0"
+        "stableRS": "payments-api-565f799f95",
+        "canaryRS": "payments-api-565f799f95",
+        "stableImage": "payments-api:v2.3",
+        "canaryImage": "payments-api:v2.3"
       },
       "traffic": { "stable": 100, "canary": 0 },
       "metrics": {
         "stableErrorRate": 0.12,
         "canaryErrorRate": 0.0,
-        "stableP99": 136,
+        "stableP99": 24.56,
         "canaryP99": 0
       },
       "slo": { "status": "healthy", "errorBudget": 98.8, "canaryError": 0 },
       "pods": {
-        "stable": { "desired": 3, "ready": 3, "image": "ghcr.io/adventurewave-labs/payments-api:v2.4.0" },
-        "canary": { "desired": 0, "ready": 0, "image": "ghcr.io/adventurewave-labs/payments-api:v2.4.0", "phase": "Idle" }
+        "stable": { "desired": 4, "ready": 4, "image": "payments-api:v2.3" },
+        "canary": { "desired": 0, "ready": 0, "image": "payments-api:v2.3", "phase": "Idle" }
       },
       "findings": [],
       "findingsCount": 0
