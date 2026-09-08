@@ -17,31 +17,80 @@ import { ArgoSyncCard } from "@/components/ArgoSyncCard";
 import { RolloutsTrafficCard } from "@/components/RolloutsTrafficCard";
 import { PrometheusMetricsCard } from "@/components/PrometheusMetricsCard";
 import { AnalyzerTerminalCard } from "@/components/AnalyzerTerminalCard";
+import { ReplayBanner } from "@/components/ReplayBanner";
 import { useClusterState } from "@/hooks/use-cluster-state";
 import type { ClusterState } from "@/hooks/use-cluster-state";
+import { useReplayMode } from "@/hooks/use-replay-mode";
 
+export default function Home() {
+  const { state: liveState, error, loading } = useClusterState(1000);
+  const replay = useReplayMode("/replay-fixture.json");
 
-/**
- * /api/cluster-state reads a live cluster through KUBECONFIG. When there is no
- * cluster - a Vercel build, or a checkout where setup.sh has not been run - say
- * so, instead of showing "connecting to cluster..." forever.
- */
-function NoCluster({ error }: { error: string | null }) {
+  // No live cluster → enter replay mode
+  const inReplay = !liveState && !loading;
+  // Effective state: prefer live, fall back to replay
+  const state = liveState ?? (inReplay ? replay.state : null);
+
   return (
-    <div className="mx-auto max-w-xl py-20 text-center">
-      <div className="text-sm font-semibold text-zinc-300">No cluster reachable</div>
-      <p className="mt-2 text-sm leading-relaxed text-zinc-500">
-        This dashboard renders live Argo Rollouts, Prometheus and kube-apiserver
-        state. It needs a k3s cluster on the same host, so it stays empty on a
-        static deployment.
+    <main className="min-h-screen overflow-x-hidden bg-zinc-950 bg-grid text-zinc-100">
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
+        <Header state={state} isReplay={inReplay} />
+
+        {/* Replay banner — only shown when replaying a recorded session */}
+        {inReplay && (
+          <div className="mb-5">
+            <ReplayBanner
+              isPlaying={replay.isPlaying}
+              progress={replay.progress}
+              duration={replay.duration}
+              recordingTimestamp={replay.recordingTimestamp}
+              onPlay={replay.play}
+              onPause={replay.pause}
+              onSeek={replay.seek}
+            />
+          </div>
+        )}
+
+        {/* API error banner — only when we had a live state that then errored */}
+        {error && liveState && (
+          <div className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">
+            ⚠ cluster-state API error: <code className="font-mono">{error}</code>
+          </div>
+        )}
+
+        {/* Main content area */}
+        {!state && loading && !error ? (
+          <div className="py-20 text-center text-zinc-500">connecting to cluster…</div>
+        ) : !state ? (
+          <CodespacesCTA />
+        ) : (
+          <>
+            <StateRail state={state!} />
+            <StackLegend />
+            <MainGrid state={state!} />
+          </>
+        )}
+
+        {/* Codespaces CTA below the dashboard in replay mode */}
+        {inReplay && <CodespacesCTA />}
+
+        <Footer state={state} isReplay={inReplay} />
+      </div>
+    </main>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Codespaces CTA (shown below replay or when no data at all)          */
+/* ------------------------------------------------------------------ */
+
+function CodespacesCTA() {
+  return (
+    <div className="mt-6 flex flex-col items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-900/40 px-6 py-5 text-center">
+      <p className="text-sm text-zinc-400">
+        Want to run this live? Spin up a k3s cluster or launch a Codespace.
       </p>
-      <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
-        <a
-          href="/showcase/index.html"
-          className="inline-flex items-center rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs font-medium text-zinc-200 transition-colors hover:border-zinc-600 hover:bg-zinc-800"
-        >
-          Watch a recorded run
-        </a>
+      <div className="flex flex-wrap items-center justify-center gap-2.5">
         <a
           href="https://codespaces.new/adventurewave-labs/gitops-progressive-delivery-demo?quickstart=1"
           target="_blank"
@@ -50,45 +99,17 @@ function NoCluster({ error }: { error: string | null }) {
         >
           Run it in a Codespace
         </a>
+        <a
+          href="/showcase/index.html"
+          className="inline-flex items-center rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs font-medium text-zinc-200 transition-colors hover:border-zinc-600 hover:bg-zinc-800"
+        >
+          Watch a recorded run
+        </a>
       </div>
-      <p className="mt-5 font-mono text-[11px] text-zinc-600">
+      <p className="font-mono text-[11px] text-zinc-600">
         bash setup.sh → bash dev-real.sh → bash demo-controller/cycle.sh
       </p>
-      {error ? (
-        <p className="mt-3 font-mono text-[11px] text-zinc-700">/api/cluster-state: {error}</p>
-      ) : null}
     </div>
-  );
-}
-
-export default function Home() {
-  const { state, error, loading } = useClusterState(1000);
-
-  return (
-    <main className="min-h-screen overflow-x-hidden bg-zinc-950 bg-grid text-zinc-100">
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-10">
-        <Header state={state} />
-        {/* When there is no state at all, NoCluster already explains it - showing
-            the red API banner too just repeats the same line twice. */}
-        {error && state && (
-          <div className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">
-            ⚠ cluster-state API error: <code className="font-mono">{error}</code>
-          </div>
-        )}
-        {!state && loading && !error ? (
-          <div className="py-20 text-center text-zinc-500">connecting to cluster…</div>
-        ) : !state ? (
-          <NoCluster error={error} />
-        ) : (
-          <>
-            <StateRail state={state!} />
-            <StackLegend />
-            <MainGrid state={state!} />
-          </>
-        )}
-        <Footer state={state} />
-      </div>
-    </main>
   );
 }
 
@@ -96,12 +117,13 @@ export default function Home() {
 /* Header                                                              */
 /* ------------------------------------------------------------------ */
 
-function Header({ state }: { state: ClusterState | null }) {
+function Header({ state, isReplay }: { state: ClusterState | null; isReplay?: boolean }) {
   const phase = state?.phase ?? "idle";
   const busy = phase !== "idle" && phase !== "rollback";
   // Without a cluster behind it the "LIVE DEMO" claim is false, so the header
   // has to say what this actually is instead of asserting it is live.
-  const connected = state !== null;
+  // In replay mode we have state data but it's not live — differentiate.
+  const connected = state !== null && !isReplay;
 
   return (
     <header className="mb-6 flex flex-col gap-4 lg:mb-8 lg:flex-row lg:items-center lg:justify-between">
@@ -133,9 +155,9 @@ function Header({ state }: { state: ClusterState | null }) {
             </>
           ) : (
             <>
-              <span className="font-semibold text-zinc-300">NOT CONNECTED TO A CLUSTER.</span>{" "}
-              Every panel below reads live Argo CD, Argo Rollouts, Prometheus and kube-apiserver
-              state — nothing is mocked, so there is nothing to show until a cluster is running.
+              <span className="font-semibold text-amber-300">REPLAY MODE — RECORDED SESSION.</span>{" "}
+              Showing a captured progressive delivery cycle through the same live components.
+              No cluster is reachable; dashboard is powered by replay data.
             </>
           )}
         </p>
@@ -396,13 +418,15 @@ function CodeBlock({
 /* Footer                                                              */
 /* ------------------------------------------------------------------ */
 
-function Footer({ state }: { state: ClusterState | null }) {
+function Footer({ state, isReplay }: { state: ClusterState | null; isReplay?: boolean }) {
   return (
     <footer className="mt-8 border-t border-zinc-800 pt-5 text-[11px] text-zinc-500">
       <div className="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
         <div className="flex items-center gap-2">
           <Database className="h-3 w-3" />
-          backed by: live kube-apiserver via KUBECONFIG · prometheus (/api/prometheus) · glm-4.5 via z-ai-web-dev-sdk (/api/explain)
+          {isReplay
+            ? "replay mode · recorded fixture (/replay-fixture.json) · not connected to a live cluster"
+            : "backed by: live kube-apiserver via KUBECONFIG · prometheus (/api/prometheus) · glm-4.5 via z-ai-web-dev-sdk (/api/explain)"}
         </div>
         <div className="flex items-center gap-3">
           {state && (
