@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/banner.svg" alt="gitops-progressive-delivery-demo — animated banner" width="100%"></p>
+
 # gitops-progressive-delivery-demo
 
 A GitOps progressive-delivery pipeline that actually runs: real k3s, real Argo CD,
